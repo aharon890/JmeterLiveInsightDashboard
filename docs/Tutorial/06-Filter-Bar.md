@@ -4,7 +4,7 @@ A persistent control bar below the tabs. Its settings apply to the charts on eve
 
 Palette, line thickness, custom colors, Clock/Elapsed and presets are saved in localStorage and survive a page reload. Metric, window, granularity and the sampler selection go back to their defaults on reload; save a preset to keep a selection.
 
-Screenshot: Filter bar with two rows of controls.
+![The filter bar, its two rows outlined: Row 1 holds the chart settings, Row 2 the sampler selection](../images/filter-bar.png)
 
 ## Layout
 
@@ -113,7 +113,7 @@ Each sampler appears as a pill-shaped label with:
 
 **Uncheck a sampler** to remove its line from the time-series charts. The pills filter the charts only: the Samplers table, the Errors tab and the metric cards always show every sampler.
 
-Screenshot: Sampler pills with checkboxes and color dots.
+![Sampler pills: a checkbox, a color dot and the name; the Σ Total pill first](../images/sampler-pills.png)
 
 ### All / None Buttons
 
@@ -147,7 +147,7 @@ Click the **color dot** next to any sampler name to open a color picker:
 - Custom colors persist in localStorage across page reloads
 - Color picker closes on selection or clicking outside
 
-Screenshot: Color picker popup with swatch grid and hex input.
+![The color picker opened from a sampler's color dot: the swatch grid and Custom...](../images/color-picker.png)
 
 ### Filter Presets
 

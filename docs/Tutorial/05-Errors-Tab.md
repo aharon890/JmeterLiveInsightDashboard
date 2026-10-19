@@ -2,7 +2,7 @@
 
 Error breakdown charts and detail table for investigating test failures.
 
-Screenshot: Errors tab showing pie chart, bar chart, and error details table.
+![Errors tab: errors by response code and by sampler, above the Recent Errors table](../images/errors-light.png)
 
 ## Error Charts
 
@@ -14,7 +14,7 @@ Two charts displayed side by side:
 - Labels shown when 8 or fewer unique codes exist
 - Hover tooltip shows count and percentage
 
-Screenshot: Error pie chart showing 500, 404, 503 distribution.
+![Errors by Response Code: a donut chart with one slice per status code](../images/error-pie.png)
 
 ### Errors by Sampler (Bar Chart)
 
@@ -23,7 +23,7 @@ Screenshot: Error pie chart showing 500, 404, 503 distribution.
 - Sorted by count descending
 - Sampler names truncated at 25 characters in axis labels
 
-Screenshot: Error bar chart with per-sampler error counts.
+![Errors by Sampler: one bar per sampler, in its chart color](../images/error-bar.png)
 
 ### Chart Controls
 

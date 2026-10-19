@@ -6,6 +6,8 @@ Six settings have fields in the JMeter GUI listener panel (table below). Every s
 
 When the Live Insight Dashboard listener is added to a test plan, the listener panel exposes these settings:
 
+![The Live Insight Dashboard listener panel in JMeter](../images/listener-gui.png)
+
 | Setting | Default | Description |
 |---------|---------|-------------|
 | **Port** | 7566 | HTTP server port. Auto-increments to next available port (up to 7575) if busy |

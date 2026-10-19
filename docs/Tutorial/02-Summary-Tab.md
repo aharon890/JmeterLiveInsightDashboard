@@ -2,7 +2,7 @@
 
 The default view when opening the dashboard. Provides at-a-glance test metrics that update in real-time.
 
-Screenshot: Summary tab showing 8 metric cards and response time chart.
+![Summary tab: eight metric cards above the response time chart](../images/summary-light.png)
 
 ## Metric Cards
 
@@ -52,6 +52,8 @@ The Error Rate card switches to a red-tinted style when the error rate exceeds 0
 ## Apdex Badge
 
 The header displays an Apdex (Application Performance Index) badge computed from cumulative data, exactly as JMeter's HTML report computes it:
+
+![Dashboard header with the SLA and Apdex badges at the right](../images/header.png)
 
 **Apdex = (Satisfied + Tolerating/2) / Total**
 
