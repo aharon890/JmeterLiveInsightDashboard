@@ -89,7 +89,7 @@ A line chart duplicated from the Timeline tab for quick reference without switch
 - **Legend toggle** — click a sampler name to hide/show its line
 - **Zoom and pan** — mouse wheel to zoom; drag inside the chart to pan
 - **Time range slider** — draggable slider at the bottom
-- **PNG export** — camera icon in the chart toolbox (top-right)
+- **PNG export** — download icon in the chart toolbox (top-right; hover shows "Save PNG")
 
 The chart updates in real-time as data streams in. When the selected metric changes in the filter bar, both the Summary chart and the Timeline response time chart update.
 

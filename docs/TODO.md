@@ -27,6 +27,44 @@ every call (each catch-up, reconnect and theme toggle) and never removes the old
 a long-lived tab resizes its charts several times per window resize. Harmless until a tab
 has reconnected many times.
 
+### Open mini-charts ignore Palette, Metric and Granularity changes
+
+Found 2026-10-19 in 1.6.2, reproduced, not fixed. The filter controls redraw the main
+charts and the Samplers table (`debouncedRefresh`), not an expanded sampler's mini-charts,
+and switching tabs doesn't redraw them either:
+- Metric and Granularity: while the test runs they reach the mini-charts at the next
+  update; after it ends, never (`refreshDetailCharts` skips an ended run), until the row
+  is collapsed and re-expanded.
+- Palette and custom colours: applied only when a mini-chart is built, so an open one
+  keeps its old colour.
+
+FEATURES.md and the Timeline tutorial describe the intended behaviour. Candidate: redraw
+the expanded rows from `debouncedRefresh`, forced past the ended-run guard as
+`refreshAfterBucket` does, and set the series colour on each redraw.
+
+### The Clock/Elapsed toggle doesn't redraw the Errors table
+
+Found 2026-10-19 in 1.6.2, reproduced, not fixed. `toggleTimeDisplay` redraws the charts
+only. The Recent Errors table's Time column is rebuilt at the next update, and after the
+test ends there is none, so the column keeps the old format until reload. FEATURES.md
+describes the intended behaviour. Candidate: call `renderErrorTable` from the toggle.
+
+### A snapshot's Throughput chart always draws Σ Total
+
+Found 2026-10-19 in 1.6.2, reproduced, not fixed. With more than one sampler, the exported
+snapshot adds the dashed Σ Total line to Throughput even when Σ Total was unchecked on the
+live page, which leaves it out. The snapshot's Response Time chart follows the setting.
+Candidate: give the snapshot's Throughput builder the same `samplerVisibility` check its
+Response Time builder has.
+
+### Dragging inside a Timeline chart moves the card instead of panning
+
+Found 2026-10-19 in 1.6.2, reproduced in Chromium and Firefox, not fixed. The whole
+Timeline card is `draggable` so cards can be reordered, and the browser starts that drag
+as soon as the mouse moves inside the chart, so a zoomed chart never pans. The same drag
+pans the Summary chart, whose card is not draggable. The Timeline tutorial describes
+drag-to-pan. Candidate: let only the drag grip (left of the title) start the reorder.
+
 ### Distributed runs: the timeline is distorted under JMeter's default sample sender
 - Totals, percentiles, errors and thread counts are correct across engines
   (Docker D9–D11). The *per-interval* charts are not, by default: remote engines

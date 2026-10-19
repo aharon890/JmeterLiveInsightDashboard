@@ -65,10 +65,12 @@ The test plan (`test.jmx`) must contain the Live Insight Dashboard listener — 
 
 ```bash
 jmeter -n -t test.jmx \
-  -Jlive.dashboard.port=8080 \
   -Jlive.dashboard.bind=0.0.0.0 \
-  -Jlive.dashboard.update.interval=1
+  -Jlive.dashboard.open.browser=false \
+  -Jlive.dashboard.idle.timeout=1800
 ```
+
+This makes the dashboard reachable from other machines at `http://<your-ip>:7566`, opens no browser on the load generator (open that URL yourself), and keeps it serving for 30 minutes after the test ends with no tab open. Port, update interval, chart history and hide patterns are saved in the plan; set them in the listener panel.
 
 See [Configuration](10-Configuration.md) for all available properties.
 

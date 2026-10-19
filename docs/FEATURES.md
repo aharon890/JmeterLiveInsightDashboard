@@ -470,7 +470,7 @@ Two CSV export buttons:
 CSV files use UTF-8 encoding with quoted fields and escaped double quotes.
 
 ### PNG Chart Export
-The Summary response time chart and the five Timeline charts include a save-as-image button in the ECharts toolbox (camera icon). Downloads a PNG at 2x pixel ratio for retina clarity. The error charts and the per-sampler mini-charts have none.
+The Summary response time chart and the five Timeline charts include a save-as-image button in the ECharts toolbox (download icon; hover shows "Save PNG"). Downloads a PNG at 2x pixel ratio for retina clarity. The error charts and the per-sampler mini-charts have none.
 
 ### Copy Summary as HTML
 The "Copy Summary" button in the footer copies an HTML table to the clipboard containing all 8 metric card values, formatted for pasting into:
@@ -595,6 +595,8 @@ jmeter -n -t test.jmx \
   -Jlive.dashboard.apdex.threshold=300 \
   -Jlive.dashboard.hide.patterns="JSR223*,Debug*,BeanShell*,Setup*"
 ```
+
+A plan saved from the JMeter GUI always holds Port, Update Interval, Chart History Limit and Auto-hide patterns, so for such a plan the `port`, `update.interval` and `hide.patterns` flags above are ignored: set those in the listener panel, or clear Port and Auto-hide patterns there to hand them to `-J`.
 
 ---
 
