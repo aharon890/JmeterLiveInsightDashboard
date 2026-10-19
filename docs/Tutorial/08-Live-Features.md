@@ -26,14 +26,14 @@ The catchup event ensures the dashboard fully recovers after any disconnection w
 
 The header badge reflects the current connection state:
 
-| State | Badge Color | Dot Animation | Meaning |
-|-------|-------------|---------------|---------|
-| **CONNECTING** | Grey | Static | Initial connection attempt |
-| **LIVE** | Green | Pulsing | Connected, test is running |
-| **EXPLORING** | Blue | Static | Connected, test running, user has zoomed into charts |
-| **ENDED** | Amber | Static | Connected, test has finished |
-| **DISCONNECTED** | Grey | Static | SSE connection lost, auto-reconnecting every 3 seconds |
-| **CLOSED** | Grey | Static | Server shut down for new test — no reconnect |
+| State | Badge | Badge Color | Dot Animation | Meaning |
+|-------|-------|-------------|---------------|---------|
+| **CONNECTING** | | Grey | Static | Initial connection attempt |
+| **LIVE** | ![LIVE badge](../images/state-live.png) | Green | Pulsing | Connected, test is running |
+| **EXPLORING** | ![EXPLORING badge](../images/state-exploring.png) | Blue | Static | Connected, test running, user has zoomed into charts |
+| **ENDED** | ![ENDED badge](../images/state-ended.png) | Amber | Static | Connected, test has finished |
+| **DISCONNECTED** | ![DISCONNECTED badge](../images/state-disconnected.png) | Grey | Static | SSE connection lost, auto-reconnecting every 3 seconds |
+| **CLOSED** | | Grey | Static | Server shut down for new test — no reconnect |
 
 Connection state is reflected in two places:
 - **Header badge** — text label with color
@@ -84,6 +84,8 @@ This prevents stale tabs from connecting to a different test's server.
 ## Test Controls
 
 The footer provides buttons for controlling the running test:
+
+![The footer: Stop Test, Shutdown, Pause Updates, Copy Summary and Export Snapshot](../images/footer.png)
 
 ### Stop Test (Graceful)
 

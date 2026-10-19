@@ -2,7 +2,7 @@
 
 Full time-series visualization of test metrics. All charts update in real-time as data streams from JMeter.
 
-Screenshot: Timeline tab showing 5 stacked charts.
+![Timeline tab: the five charts stacked](../images/timeline-light.png)
 
 ## Charts
 
@@ -38,7 +38,7 @@ Every chart has these controls:
 | **Fullscreen** | Chart header | Expands chart to full viewport; header with Exit stays visible |
 | **PNG export** | Chart toolbox (top-right) | Downloads chart as PNG at 2x pixel ratio |
 
-Screenshot: Chart header showing drag handle, title, and fullscreen button.
+![A chart card: drag grip and title at the left, Fullscreen at the right, the PNG download icon below it](../images/chart-card.png)
 
 ## Drag-and-Drop Reorder
 
@@ -66,6 +66,8 @@ When you zoom into any chart, the dashboard enters **Explore mode**:
 - The header badge changes from "LIVE" to "EXPLORING" (blue)
 - A floating "Return to Live" button appears at the bottom-right
 - Click the button to snap back to the latest data
+
+![Explore mode: a zoomed chart, the EXPLORING badge in the header and the Return to Live button](../images/explore-mode.png)
 
 See [Live Features](08-Live-Features.md) for details on the LIVE/EXPLORING states.
 
@@ -131,6 +133,8 @@ The window only changes what is drawn, so switching back to Full loses nothing. 
 ## Dark Mode
 
 Chart text colors, axis lines and grid lines adapt automatically when dark mode is toggled. The chart tooltips are dark in both modes. See [Dark Mode](07-Dark-Mode-Accessibility.md).
+
+![Timeline tab in dark mode](../images/timeline-dark.png)
 
 ## Tips
 

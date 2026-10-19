@@ -4,6 +4,8 @@
 
 The **"Export Snapshot"** button in the footer downloads a self-contained HTML file with all current dashboard data embedded as JSON.
 
+![An exported snapshot opened from disk, with the SNAPSHOT badge in place of LIVE](../images/snapshot.png)
+
 ### What's Included
 
 - All 4 tabs: Summary, Timeline, Samplers, Errors
@@ -62,7 +64,7 @@ The HTML table is formatted for direct pasting into:
 - Wiki pages
 - Google Docs
 
-Screenshot: Copy Summary pasted into a Confluence page.
+![The table Copy Summary puts on the clipboard, as an HTML editor renders it](../images/copy-summary.png)
 
 ## CSV Export
 
@@ -91,7 +93,9 @@ Two CSV export buttons are available:
 
 ## PNG Chart Export
 
-The Summary response time chart and the five Timeline charts include a **save-as-image button** (camera icon) in the ECharts toolbox.
+The Summary response time chart and the five Timeline charts include a **save-as-image button** (download icon) in the ECharts toolbox, at the top right of the chart.
+
+![A chart card with the download icon at its top right](../images/chart-card.png)
 
 | Property | Value |
 |----------|-------|

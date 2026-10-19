@@ -2,7 +2,7 @@
 
 Detailed per-sampler statistics table with sorting, filtering, column control, and inline chart expansion. All values update in real-time.
 
-Screenshot: Samplers tab showing statistics table with expanded detail charts.
+![Samplers tab: the statistics table](../images/samplers-light.png)
 
 ## Statistics Table
 
@@ -50,6 +50,8 @@ Each sampler row shows an inline badge:
 | **WARN** (amber) | At least one metric between 80% and 100% of threshold |
 | **FAIL** (red) | At least one metric exceeds threshold |
 
+![Sampler rows with PASS, WARN and FAIL badges, under a P95 SLA of 1000 ms and an error-rate SLA of 4%](../images/samplers-table.png)
+
 ### Color Dots
 
 Each sampler row includes a colored square matching its chart series color, providing visual correlation between the table and charts.
@@ -64,7 +66,7 @@ Each sampler row includes a colored square matching its chart series color, prov
 
 ### Search / Filter
 
-Screenshot: Search input above the table.
+![The table toolbar: search box, Export CSV, Hide Children and Columns](../images/table-toolbar.png)
 
 - A text input above the table filters rows by sampler name
 - Matching is case-insensitive
@@ -72,6 +74,8 @@ Screenshot: Search input above the table.
 - Clear the input to restore all rows
 
 ### Column Visibility
+
+![The Columns dropdown with a checkbox per column](../images/column-menu.png)
 
 - Click the **"Columns"** button to open a dropdown
 - The 12 data columns are listed with checkboxes; the Sampler column is always shown
@@ -112,11 +116,13 @@ The detail panel has 3 chart slots:
 - Mini-chart time labels count from the start of the test (30s, 2:15); after two hours they switch to the main charts' Clock/Elapsed format
 - Zooming one mini-chart zooms all of them (every expanded sampler, all three KPIs); the zoom is not reset by live data updates, and the mini-charts hold still until you zoom back out to the whole run
 
-Screenshot: Expanded sampler row showing 3 inline mini-charts.
+![An expanded sampler row with its Response Time, Throughput and Error Rate mini-charts](../images/sampler-detail-row.png)
 
 ## Transaction Controller Hierarchy
 
 Parent and child rows come from JMeter's own results, not from sampler names.
+
+![A plan with both Transaction Controller modes: the steps of Checkout Transaction (Generate parent sample) are indented as its children and sort with the other rows; the Browse steps are ordinary rows](../images/samplers-transactions.png)
 
 ### Default Behavior
 

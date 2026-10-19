@@ -4,7 +4,7 @@
 
 Toggle via the **crescent/sun icon** in the header.
 
-Screenshot: Dashboard in dark mode showing dark backgrounds with light text.
+![Summary tab in dark mode](../images/summary-dark.png)
 
 ### What Changes
 
@@ -33,7 +33,7 @@ Screenshot: Dashboard in dark mode showing dark backgrounds with light text.
 
 Toggle via the **eye icon** in the header.
 
-Screenshot: Colorblind mode showing blue/orange instead of green/red.
+![Summary tab in colorblind mode: blue and orange in place of green and red](../images/colorblind-mode.png)
 
 ### What Changes
 
