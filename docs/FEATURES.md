@@ -596,6 +596,8 @@ jmeter -n -t test.jmx \
   -Jlive.dashboard.hide.patterns="JSR223*,Debug*,BeanShell*,Setup*"
 ```
 
+A plan saved from the JMeter GUI always holds Port, Update Interval, Chart History Limit and Auto-hide patterns, so for such a plan the `port`, `update.interval` and `hide.patterns` flags above are ignored: set those in the listener panel, or clear Port and Auto-hide patterns there to hand them to `-J`.
+
 ---
 
 ## Connection Resilience

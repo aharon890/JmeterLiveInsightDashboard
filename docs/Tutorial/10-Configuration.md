@@ -158,12 +158,14 @@ normal rule and needs no exception.
 always works for them: `live.dashboard.enabled` and `live.dashboard.error.samples.max`.
 
 Practical consequence: if a `-J` property appears to be ignored, check whether the value
-is saved in the element. Clear the field in the GUI (or remove the property from the
-`.jmx`) and the `-J` value takes effect.
+is saved in the element. Clear the Port or Auto-hide patterns field in the GUI (or remove
+the property from the `.jmx`) and the `-J` value takes effect. An emptied Update Interval
+or Chart History Limit field is not saved, so the plan keeps its old value: set the value
+in the panel, or remove the property from the `.jmx`.
 
 ## Tips
 
-- Add the Live Insight Dashboard listener to your test plan, then tune behavior with `-J` properties per run — but only for settings the plan has **not** already pinned. A value saved in the element wins over `-J` (see Property Precedence above). Where the panel lets you clear a field, clearing it hands control back to `-J`.
+- Add the Live Insight Dashboard listener to your test plan, then tune behavior with `-J` properties per run — but only for settings the plan has **not** already pinned. A value saved in the element wins over `-J` (see Property Precedence above). Clearing the Port or Auto-hide patterns field hands control back to `-J`; an emptied Update Interval or Chart History Limit field is not saved.
 - **`live.dashboard.bind` and `live.dashboard.open.browser` can always be driven by `-J`.** Both describe the machine rather than the test, and the GUI writes both into every plan it saves, so for these two the `-J` value wins over the saved element value. `-Jlive.dashboard.bind=0.0.0.0` makes the dashboard reachable from other machines regardless of what the plan has saved.
 - Set `bind=0.0.0.0` to share the dashboard with team members on the same network.
 - Lower the update interval to 1 second for more responsive charts during short tests.

@@ -68,10 +68,11 @@ cp target/jmeter-live-dashboard-1.6.2.jar $JMETER_HOME/lib/ext/
 <p>The test plan (<code>test.jmx</code>) must contain the Live Insight Dashboard listener — add it in the GUI and save the plan, then run that saved plan in non-GUI mode. The dashboard opens at <code>http://localhost:7566</code>.</p>
 <p><strong>With custom settings:</strong></p>
 <pre><code class="language-bash">jmeter -n -t test.jmx \
-  -Jlive.dashboard.port=8080 \
   -Jlive.dashboard.bind=0.0.0.0 \
-  -Jlive.dashboard.update.interval=1
+  -Jlive.dashboard.open.browser=false \
+  -Jlive.dashboard.idle.timeout=1800
 </code></pre>
+<p>This makes the dashboard reachable from other machines at <code>http://&lt;your-ip&gt;:7566</code>, opens no browser on the load generator (open that URL yourself), and keeps it serving for 30 minutes after the test ends with no tab open. Port, update interval, chart history and hide patterns are saved in the plan; set them in the listener panel.</p>
 <p>See <a href="10-Configuration.md">Configuration</a> for all available properties.</p>
 <h2>Dashboard Layout</h2>
 <p>The dashboard has 4 main areas:</p>
