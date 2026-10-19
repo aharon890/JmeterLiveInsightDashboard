@@ -1,0 +1,4 @@
+# JMeter output files (regenerated each run)
+*.jtl
+*.log
+*-output/

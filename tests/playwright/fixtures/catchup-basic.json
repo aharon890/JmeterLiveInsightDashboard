@@ -1,0 +1,115 @@
+{
+  "type": "catchup",
+  "testName": "Smoke Test",
+  "testStartTime": 1711900000000,
+  "testRunning": true,
+  "testEndTime": 0,
+  "knownSamplers": ["GET /api/products", "POST /api/cart", "GET /api/checkout"],
+  "hiddenSamplers": [],
+  "slaConfig": { "p95": 1000, "errorRate": 5 },
+  "slaStatus": {},
+  "cumulativeStats": {
+    "totalSamples": 500,
+    "totalErrors": 5,
+    "totalBytes": 512000,
+    "totalSentBytes": 128000,
+    "elapsedTime": 30000,
+    "activeThreads": 5,
+    "maxThreads": 5,
+    "overallThroughput": 16.7,
+    "overallErrorRate": 1.0,
+    "receivedKBs": 17.1,
+    "sentKBs": 4.3,
+    "p50": 190,
+    "p90": 380,
+    "p95": 450,
+    "p99": 800,
+    "avgResponseTime": 234,
+    "minResponseTime": 45,
+    "maxResponseTime": 1250,
+    "apdex": 0.93,
+    "apdexThreshold": 500
+  },
+  "samplerStats": {
+    "GET /api/products": {
+      "name": "GET /api/products", "samples": 200, "errors": 2, "errorRate": 1.0,
+      "avgResponseTime": 180, "minResponseTime": 45, "maxResponseTime": 890,
+      "p50": 150, "p90": 350, "p95": 450, "p99": 780,
+      "throughput": 6.7, "receivedKBs": 85.3, "sentKBs": 21.3
+    },
+    "POST /api/cart": {
+      "name": "POST /api/cart", "samples": 150, "errors": 2, "errorRate": 1.33,
+      "avgResponseTime": 320, "minResponseTime": 100, "maxResponseTime": 1200,
+      "p50": 280, "p90": 600, "p95": 850, "p99": 1100,
+      "throughput": 5.0, "receivedKBs": 42.1, "sentKBs": 15.7
+    },
+    "GET /api/checkout": {
+      "name": "GET /api/checkout", "samples": 150, "errors": 1, "errorRate": 0.67,
+      "avgResponseTime": 210, "minResponseTime": 60, "maxResponseTime": 950,
+      "p50": 170, "p90": 400, "p95": 520, "p99": 850,
+      "throughput": 5.0, "receivedKBs": 55.2, "sentKBs": 18.4
+    }
+  },
+  "recentBuckets": [
+    {
+      "timestamp": 1711900020000,
+      "overall": {
+        "samples": 50, "errors": 1, "avgResponseTime": 230, "p50": 180, "p90": 400, "p95": 500, "p99": 800,
+        "throughput": 25, "errorRate": 2.0, "receivedBytesPerSec": 51200, "sentBytesPerSec": 12800,
+        "activeThreads": 5, "minResponseTime": 50, "maxResponseTime": 900,
+        "avgConnectTime": 12, "avgLatency": 55
+      },
+      "samplers": {
+        "GET /api/products": {
+          "samples": 20, "errors": 0, "avgResponseTime": 170, "p50": 140, "p90": 320, "p95": 420, "p99": 700,
+          "throughput": 10, "errorRate": 0, "receivedBytesPerSec": 20480,
+          "avgConnectTime": 10, "avgLatency": 45
+        },
+        "POST /api/cart": {
+          "samples": 15, "errors": 1, "avgResponseTime": 340, "p50": 300, "p90": 620, "p95": 880, "p99": 1100,
+          "throughput": 7.5, "errorRate": 6.67, "receivedBytesPerSec": 15360,
+          "avgConnectTime": 15, "avgLatency": 70
+        },
+        "GET /api/checkout": {
+          "samples": 15, "errors": 0, "avgResponseTime": 200, "p50": 160, "p90": 380, "p95": 500, "p99": 820,
+          "throughput": 7.5, "errorRate": 0, "receivedBytesPerSec": 15360,
+          "avgConnectTime": 11, "avgLatency": 50
+        }
+      }
+    },
+    {
+      "timestamp": 1711900022000,
+      "overall": {
+        "samples": 48, "errors": 0, "avgResponseTime": 210, "p50": 170, "p90": 380, "p95": 470, "p99": 750,
+        "throughput": 24, "errorRate": 0, "receivedBytesPerSec": 49152, "sentBytesPerSec": 12288,
+        "activeThreads": 5, "minResponseTime": 45, "maxResponseTime": 850,
+        "avgConnectTime": 11, "avgLatency": 52
+      },
+      "samplers": {
+        "GET /api/products": {
+          "samples": 18, "errors": 0, "avgResponseTime": 160, "p50": 130, "p90": 300, "p95": 400, "p99": 680,
+          "throughput": 9, "errorRate": 0, "receivedBytesPerSec": 18432,
+          "avgConnectTime": 9, "avgLatency": 42
+        },
+        "POST /api/cart": {
+          "samples": 14, "errors": 0, "avgResponseTime": 310, "p50": 270, "p90": 580, "p95": 820, "p99": 1050,
+          "throughput": 7, "errorRate": 0, "receivedBytesPerSec": 14336,
+          "avgConnectTime": 14, "avgLatency": 65
+        },
+        "GET /api/checkout": {
+          "samples": 16, "errors": 0, "avgResponseTime": 190, "p50": 155, "p90": 360, "p95": 480, "p99": 790,
+          "throughput": 8, "errorRate": 0, "receivedBytesPerSec": 16384,
+          "avgConnectTime": 10, "avgLatency": 48
+        }
+      }
+    }
+  ],
+  "recentErrors": [
+    { "timestamp": 1711900020500, "sampler": "POST /api/cart", "responseCode": "500", "responseMessage": "Internal Server Error", "requestUrl": "http://example.com/api/cart" },
+    { "timestamp": 1711900019200, "sampler": "GET /api/products", "responseCode": "503", "responseMessage": "Service Unavailable", "requestUrl": "http://example.com/api/products" }
+  ],
+  "errorSummary": {
+    "byCode": { "500": 3, "503": 2 },
+    "bySampler": { "POST /api/cart": 3, "GET /api/products": 2 }
+  }
+}

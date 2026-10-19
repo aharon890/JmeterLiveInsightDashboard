@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  pre-push — refuse direct pushes to a protected branch.
+#
+#  Work on a branch and open a PR. There is no CI — nothing on the server
+#  re-checks anything after a push — so the full regression runs locally
+#  (scripts/test-regression.sh) and merges go through scripts/merge-pr.sh,
+#  which refuses to merge unless that run is fully green. A direct push to a
+#  protected branch therefore skips review AND lands with no green run
+#  existing anywhere.
+#
+#  Installed via core.hooksPath, so this file is versioned with the project
+#  rather than living untracked in .git/hooks. Enable it in a fresh clone with:
+#
+#      ./scripts/install-hooks.sh
+#
+#  (or manually: git config core.hooksPath .githooks — but the installer also
+#  sets origin/HEAD, which this hook reads, and repairs index exec bits).
+#
+#  Emergency bypass (deliberately explicit, and it says what you are doing):
+#
+#      ALLOW_PUSH_TO_PROTECTED=1 git push origin master
+#
+#  `git push --no-verify` also bypasses it, but that disables every hook, so
+#  prefer the variable above.
+# =============================================================================
+set -uo pipefail
+
+# Protect the repo's ACTUAL default branch, resolved from origin/HEAD, with
+# the conventional names kept as a safety net. Resolution matters because a
+# rename (master -> main) or a fork with a different default would otherwise
+# leave the real default branch unprotected while the hook kept guarding a
+# name that no longer exists. origin/HEAD is unset in some clones — that is
+# one of the things scripts/install-hooks.sh fixes — so the fallback list
+# must be able to stand alone.
+PROTECTED_BRANCHES="main master"
+default_branch="$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)"
+default_branch="${default_branch#origin/}"
+if [[ -n "$default_branch" && " $PROTECTED_BRANCHES " != *" $default_branch "* ]]; then
+    PROTECTED_BRANCHES="$default_branch $PROTECTED_BRANCHES"
+fi
+
+if [[ "${ALLOW_PUSH_TO_PROTECTED:-0}" == "1" ]]; then
+    echo "pre-push: ALLOW_PUSH_TO_PROTECTED=1 — protected-branch check bypassed." >&2
+    exit 0
+fi
+
+# git feeds this hook one line per ref being pushed, on stdin:
+#
+#     <local ref> <local sha1> <remote ref> <remote sha1>
+#
+# The DESTINATION is $remote_ref, and it is a full refname such as
+# refs/heads/master. That is the only thing worth testing: it is the branch
+# git will actually update.
+#
+# Compare it for EXACT equality against refs/heads/<name>. Do not substring
+# match and do not look at commit messages, PR titles or branch descriptions —
+# a branch legitimately named feature/fix-master-parsing, or mainline, or
+# release/main-cleanup contains the word but is not the protected branch, and
+# blocking those would be a bug. Tags (refs/tags/...) never match either.
+blocked=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Defensive: git should always supply four fields, but a blank trailing
+    # line would otherwise be treated as a ref.
+    [[ -z "${remote_ref:-}" ]] && continue
+
+    for branch in $PROTECTED_BRANCHES; do
+        if [[ "$remote_ref" == "refs/heads/$branch" ]]; then
+            # An all-zero local sha means this is a branch DELETION
+            # (git push origin :master) — even more worth stopping.
+            if [[ "$local_sha" =~ ^0+$ ]]; then
+                echo "" >&2
+                echo "  BLOCKED: attempt to DELETE the protected branch '$branch'." >&2
+            else
+                echo "" >&2
+                echo "  BLOCKED: direct push to protected branch '$branch'." >&2
+            fi
+            blocked=1
+        fi
+    done
+done
+
+if [[ $blocked -eq 1 ]]; then
+    current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '<unknown>')"
+    cat >&2 <<EOF
+
+  Push to a feature branch and open a pull request instead:
+
+      git switch -c feature/your-change      # if you are on $current
+      git push -u origin feature/your-change
+
+  Verify locally before you push:
+
+      ./scripts/test-regression.sh
+
+  If you genuinely must push to a protected branch:
+
+      ALLOW_PUSH_TO_PROTECTED=1 git push ...
+
+EOF
+    exit 1
+fi
+
+exit 0

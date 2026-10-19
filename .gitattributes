@@ -1,0 +1,9 @@
+# Shell scripts must stay LF even on Windows checkouts (bash rejects CRLF).
+*.sh text eol=lf
+# Git hooks are shell scripts with NO extension, so *.sh above misses them.
+# Committed with CRLF they fail on Linux/macOS with "bad interpreter: ...^M",
+# which silently disables the protection rather than erroring visibly.
+.githooks/* text eol=lf
+# Batch files need CRLF to run under cmd.exe.
+*.bat text eol=crlf
+*.jmx text eol=lf

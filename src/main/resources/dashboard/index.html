@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Live Insight Dashboard</title>
+<script src="/echarts.min.js"></script>
+<style>
+/* ===== CSS Variables — identical to Web Insight Report ===== */
+:root {
+    --color-primary:#3b82f6;--color-success:#22c55e;--color-warning:#f59e0b;--color-error:#ef4444;
+    --color-bg:#f8fafc;--color-surface:#ffffff;--color-text:#1e293b;--color-text-secondary:#64748b;
+    --color-border:#e2e8f0;--color-bg-hover:#f1f5f9;--color-bg-accent:#eef2ff;
+    --color-bg-card:var(--color-surface);--color-bg-deep:#0f172a;
+    --color-bg-row-even:#fafbfc;--color-bg-row-hover:#f1f5f9;
+    --color-bg-thead:var(--color-bg);--color-bg-thead-hover:#eef2ff;--color-bg-input:var(--color-bg);
+    --color-toggle-active-bg:var(--color-primary);--color-toggle-active-text:#ffffff;
+    --badge-pass-bg:#dcfce7;--badge-pass-text:#166534;
+    --badge-warn-bg:#fef3c7;--badge-warn-text:#92400e;
+    --badge-fail-bg:#fee2e2;--badge-fail-text:#991b1b;
+    --badge-info-bg:#dbeafe;--badge-info-text:#1e40af;
+    --color-error-card-bg:#fef2f2;--color-error-card-border:var(--color-error);--color-error-card-value:var(--color-error);
+    --color-error-code-bg:#fee2e2;--color-error-code-text:#991b1b;
+    --color-total-row-bg:#f0f4ff;
+    --radius:8px;--shadow:0 1px 3px rgba(0,0,0,0.1);
+}
+body.dark-mode {
+    --color-bg:#111827;--color-surface:#111827;--color-text:#e2e8f0;--color-text-secondary:#94a3b8;
+    --color-border:#374151;--color-primary:#60a5fa;--color-success:#34d399;--color-warning:#fbbf24;--color-error:#f87171;
+    --color-bg-hover:#1e293b;--color-bg-accent:#1e293b;--color-bg-card:#1e293b;--color-bg-deep:#0f172a;
+    --color-bg-row-even:#1a2332;--color-bg-row-hover:#334155;
+    --color-bg-thead:#0f172a;--color-bg-thead-hover:#1e3a5f;--color-bg-input:#1e293b;
+    --color-toggle-active-bg:#60a5fa;--color-toggle-active-text:#0f172a;
+    --badge-pass-bg:#064e3b;--badge-pass-text:#6ee7b7;
+    --badge-warn-bg:#78350f;--badge-warn-text:#fbbf24;
+    --badge-fail-bg:#7f1d1d;--badge-fail-text:#fca5a5;
+    --badge-info-bg:#1e3a5f;--badge-info-text:#93c5fd;
+    --color-error-card-bg:#450a0a;--color-error-card-border:#f87171;--color-error-card-value:#fca5a5;
+    --color-error-code-bg:#450a0a;--color-error-code-text:#fca5a5;
+    --color-total-row-bg:#1e293b;
+    --shadow:0 1px 3px rgba(0,0,0,0.3);
+}
+/* Colorblind mode: swap green/red for blue/orange */
+body.cb-mode {
+    --color-success:#3b82f6;--color-error:#f97316;
+    --badge-pass-bg:#dbeafe;--badge-pass-text:#1e40af;
+    --badge-fail-bg:#fff7ed;--badge-fail-text:#9a3412;
+    --color-error-card-bg:#fff7ed;--color-error-card-border:#f97316;--color-error-card-value:#ea580c;
+    --color-error-code-bg:#fff7ed;--color-error-code-text:#9a3412;
+}
+body.dark-mode.cb-mode {
+    --color-success:#60a5fa;--color-error:#fb923c;
+    --badge-pass-bg:#1e3a5f;--badge-pass-text:#93c5fd;
+    --badge-fail-bg:#7c2d12;--badge-fail-text:#fdba74;
+    --color-error-card-bg:#431407;--color-error-card-border:#fb923c;--color-error-card-value:#fdba74;
+    --color-error-code-bg:#431407;--color-error-code-text:#fdba74;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--color-bg);color:var(--color-text);line-height:1.6}
+
+/* Header */
+.report-header{background:var(--color-surface);border-bottom:1px solid var(--color-border);padding:16px 32px;box-shadow:var(--shadow);position:sticky;top:0;z-index:100}
+.header-content{max-width:1400px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+.report-header h1{font-size:1.5rem;font-weight:600}
+.report-subtitle{color:var(--color-text-secondary);font-size:0.875rem;margin-top:4px}
+.header-right{display:flex;align-items:center;gap:12px}
+.live-indicator{display:flex;align-items:center;gap:6px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-success);padding:4px 12px;border-radius:20px;background:var(--badge-pass-bg)}
+.live-indicator.disconnected{color:var(--color-text-secondary);background:var(--color-bg-hover)}
+.live-indicator.ended{color:var(--badge-warn-text);background:var(--badge-warn-bg)}
+.live-indicator.exploring{color:var(--badge-info-text);background:var(--badge-info-bg)}
+.live-dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pulse 1.5s ease-in-out infinite}
+.live-indicator.disconnected .live-dot,.live-indicator.ended .live-dot,.live-indicator.exploring .live-dot{animation:none}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+.status-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.badge-pass{background:var(--badge-pass-bg);color:var(--badge-pass-text)}
+.badge-warn{background:var(--badge-warn-bg);color:var(--badge-warn-text)}
+.badge-fail{background:var(--badge-fail-bg);color:var(--badge-fail-text)}
+.dark-mode-toggle{background:none;border:1px solid var(--color-border);border-radius:6px;padding:4px 10px;font-size:1.1rem;cursor:pointer;color:var(--color-text-secondary);transition:background .15s}
+.dark-mode-toggle:hover{background:var(--color-bg-hover)}
+
+/* Tabs */
+.tab-nav{max-width:1400px;margin:0 auto;padding:0 32px;display:flex;gap:0;border-bottom:2px solid var(--color-border);background:var(--color-surface)}
+.tab-btn{padding:12px 24px;border:none;background:none;font-size:.875rem;font-weight:500;color:var(--color-text-secondary);cursor:pointer;position:relative;transition:color .2s;white-space:nowrap}
+.tab-btn:hover{color:var(--color-text);background:var(--color-bg-hover)}
+.tab-btn.active{color:var(--color-primary);font-weight:600}
+.tab-btn.active::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:2px;background:var(--color-primary)}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* Filter bar */
+.filter-bar{background:var(--color-surface);border-bottom:1px solid var(--color-border);padding:8px 32px}
+.filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:3px 0;max-width:1400px;margin:0 auto}
+.filter-label{font-size:.8rem;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.filter-link-btn{background:none;border:none;color:var(--color-primary);font-size:.75rem;cursor:pointer;text-decoration:underline;padding:2px 4px}
+.filter-link-btn:hover{color:var(--color-text)}
+.filter-btn-group{display:flex;gap:0;border:1px solid var(--color-border);border-radius:6px;overflow:hidden}
+.filter-toggle-btn{padding:4px 14px;border:none;background:var(--color-bg-input);font-size:.8rem;color:var(--color-text-secondary);cursor:pointer;border-right:1px solid var(--color-border);transition:background .15s,color .15s}
+.filter-toggle-btn:last-child{border-right:none}
+.filter-toggle-btn:hover{background:var(--color-bg-accent)}
+.filter-toggle-btn.active{background:var(--color-toggle-active-bg);color:var(--color-toggle-active-text)}
+
+/* Sampler checkbox pills (matches report exactly) */
+.filter-sampler-list{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.filter-sampler-list .sampler-pill{display:flex;align-items:center;gap:8px;font-size:.75rem;color:var(--color-text);cursor:pointer;padding:4px 10px;border-radius:12px;border:1px solid var(--color-border);background:var(--color-bg);transition:background .15s,border-color .15s;white-space:nowrap}
+.filter-sampler-list .sampler-pill:hover{background:var(--color-bg-accent);border-color:var(--color-primary)}
+.filter-sampler-list .sampler-pill.checked{background:var(--color-bg);border-color:var(--color-border);font-weight:500}
+.filter-sampler-list .sampler-pill:not(.checked){opacity:.45}
+.sampler-checkbox-box{width:16px;height:16px;border:2px solid var(--color-border);border-radius:2px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;color:transparent;transition:background .15s,border-color .15s}
+.sampler-pill.checked .sampler-checkbox-box{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.sampler-color-dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;cursor:pointer;position:relative}
+.sampler-color-dot:hover{outline:2px solid var(--color-primary);outline-offset:1px}
+.sampler-name{overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.sampler-total-separator{display:inline-block;width:1px;height:20px;background:var(--color-border);margin:0 4px}
+
+/* Color picker popup */
+.color-picker-popup{display:none;position:absolute;top:18px;left:-5px;z-index:200;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,.2);grid-template-columns:repeat(8,26px);gap:4px;width:auto}
+.color-picker-popup.open{display:grid}
+.color-swatch{width:26px;height:26px;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:transform .1s,border-color .1s}
+.color-swatch:hover{border-color:var(--color-text);transform:scale(1.15)}
+.color-swatch.selected{border-color:var(--color-primary);box-shadow:0 0 0 1px var(--color-primary)}
+
+/* Content */
+.content{max-width:1400px;margin:0 auto;padding:20px 32px 80px}
+
+/* Summary cards */
+.summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.summary-card{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--radius);padding:20px;text-align:center;box-shadow:var(--shadow)}
+.summary-card.card-error{border-color:var(--color-error-card-border);background:var(--color-error-card-bg)}
+.card-value{font-size:1.75rem;font-weight:700;color:var(--color-text);line-height:1.2}
+.card-error .card-value{color:var(--color-error-card-value)}
+.card-label{font-size:.8rem;color:var(--color-text-secondary);margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+.card-trend{font-size:.7rem;font-weight:600;margin-top:2px;transition:opacity .5s}
+.card-trend.up-good{color:var(--color-success)}.card-trend.up-bad{color:var(--color-error)}
+.card-trend.down-good{color:var(--color-success)}.card-trend.down-bad{color:var(--color-error)}
+.card-trend.neutral{color:var(--color-text-secondary)}
+
+/* Chart sections */
+.chart-section{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--radius);margin-bottom:20px;box-shadow:var(--shadow)}
+.chart-section-header{display:flex;align-items:center;padding:12px 20px;gap:8px}
+.drag-grip{cursor:grab;color:var(--color-text-secondary);font-size:1.1rem;padding:0 4px;user-select:none;opacity:.5;transition:opacity .15s}
+.drag-grip:hover{opacity:1}
+.chart-section.drag-over{border-top:3px solid var(--color-primary)}
+.chart-section.dragging{opacity:.4}
+.chart-section-header h2{font-size:.9rem;font-weight:600;flex:1}
+.chart-header-actions{display:flex;gap:6px}
+.chart-header-btn{padding:3px 10px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-input);color:var(--color-text-secondary);font-size:.7rem;cursor:pointer}
+.chart-header-btn:hover{background:var(--color-bg-hover)}
+.chart-container{width:100%;height:350px;padding:0 8px 8px}
+.chart-section.chart-fullscreen{position:fixed!important;top:0;left:0;width:100vw!important;height:100vh!important;z-index:9999;background:var(--color-surface);padding:0!important;border-radius:0!important;display:flex;flex-direction:column}
+.chart-section.chart-fullscreen .chart-section-header{z-index:10000;background:var(--color-surface);border-bottom:1px solid var(--color-border)}
+.chart-section.chart-fullscreen .chart-container{flex:1;height:auto!important}
+
+/* Tables */
+.table-section{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.table-section h2{font-size:.9rem;font-weight:600;margin-bottom:12px}
+.table-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.table-search{padding:5px 12px;border:1px solid var(--color-border);border-radius:6px;font-size:.8rem;background:var(--color-bg-input);color:var(--color-text);outline:none;width:220px}
+.table-search:focus{border-color:var(--color-primary)}
+.stats-table{width:100%;border-collapse:collapse;font-size:.8rem;table-layout:auto}
+.stats-table thead th{background:var(--color-bg-thead);border-bottom:2px solid var(--color-border);padding:8px 8px;text-align:left;font-weight:600;white-space:nowrap;font-size:.75rem;cursor:pointer;user-select:none}
+.stats-table thead th:hover{background:var(--color-bg-thead-hover)}
+.stats-table thead th.sorted-asc::after{content:" \25B2";font-size:.7em;color:var(--color-primary)}
+.stats-table thead th.sorted-desc::after{content:" \25BC";font-size:.7em;color:var(--color-primary)}
+.stats-table tbody td{padding:8px 8px;border-bottom:1px solid var(--color-border);white-space:nowrap}
+.stats-table tbody tr:nth-child(even){background:var(--color-bg-row-even)}
+.stats-table tbody tr:hover{background:var(--color-bg-row-hover)}
+.sampler-name-cell{display:flex;align-items:center;gap:4px;max-width:350px}
+.sampler-name-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.total-sampler-row{font-weight:700;background:var(--color-total-row-bg)!important;border-bottom:2px solid var(--color-border)}
+.total-sampler-row:hover{background:var(--color-total-row-bg)!important}
+.cell-error{color:var(--color-error);font-weight:600}
+.sla-badge-mini{display:inline-block;padding:1px 6px;border-radius:8px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
+.sla-badge-pass{background:var(--badge-pass-bg);color:var(--badge-pass-text)}
+.sla-badge-warn{background:var(--badge-warn-bg);color:var(--badge-warn-text)}
+.sla-badge-fail{background:var(--badge-fail-bg);color:var(--badge-fail-text)}
+.error-code-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.7rem;font-weight:600;background:var(--color-error-code-bg);color:var(--color-error-code-text)}
+
+/* Return to Live button */
+.return-live-btn{position:fixed;bottom:70px;right:32px;z-index:150;padding:10px 24px;border:none;border-radius:24px;background:var(--color-primary);color:#fff;font-size:.85rem;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(59,130,246,.4);display:none;align-items:center;gap:8px;transition:transform .15s}
+.return-live-btn:hover{transform:scale(1.05)}
+.return-live-btn.visible{display:flex}
+
+/* Footer */
+.dashboard-footer{position:fixed;bottom:0;left:0;right:0;background:var(--color-surface);border-top:1px solid var(--color-border);padding:10px 32px;box-shadow:0 -1px 3px rgba(0,0,0,.05);z-index:100}
+.footer-content{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.footer-btn{padding:6px 16px;border:1px solid var(--color-border);border-radius:6px;font-size:.8rem;font-weight:500;cursor:pointer;background:var(--color-bg-input);color:var(--color-text);transition:background .15s}
+.footer-btn:hover{background:var(--color-bg-hover)}
+.footer-btn.danger{background:var(--color-error);color:#fff;border-color:var(--color-error)}
+.footer-btn.danger:not(:disabled):hover{opacity:.9} /* not on a disabled one: it outranked :disabled below, and a just-clicked Stop Test still under the pointer looked enabled */
+.footer-btn:disabled{opacity:.4;cursor:not-allowed}
+.footer-btn.paused-active{background:#f59e0b;color:#000;border-color:#f59e0b;font-weight:700;animation:pulse-pause 1.5s ease-in-out infinite}
+body.dark-mode .footer-btn.paused-active{background:#fbbf24;color:#000;border-color:#fbbf24}
+@keyframes pulse-pause{0%,100%{opacity:1}50%{opacity:.7}}
+.footer-spacer{flex:1}
+
+@media(max-width:900px){.summary-cards{grid-template-columns:repeat(2,1fr)}.report-header,.content,.filter-bar{padding-left:16px;padding-right:16px}}
+.no-data{display:flex;align-items:center;justify-content:center;height:100%;color:var(--color-text-secondary);font-size:.9rem;font-style:italic}
+.detail-row td{padding:0!important;border-bottom:2px solid var(--color-primary)}
+.detail-charts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:8px 16px;background:var(--color-bg-accent)}
+.detail-chart-box{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:6px;padding:4px}
+.detail-chart-box h4{font-size:.7rem;color:var(--color-text-secondary);text-align:center;margin:2px 0}
+.detail-chart{height:180px}
+.stats-table tbody tr.expandable{cursor:pointer}
+.stats-table tbody tr.expandable:hover{background:var(--color-bg-accent)!important}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--color-border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="report-header">
+    <div class="header-content">
+        <div>
+            <h1 id="testName">Live Insight Dashboard</h1>
+            <p class="report-subtitle" id="headerMeta">Elapsed: <strong id="elapsed">--:--:--</strong> | Status: <span id="testStatus">Connecting...</span> | Threads: <span id="threadInfo">0/0</span></p>
+        </div>
+        <div class="header-right">
+            <span class="status-badge badge-pass" id="slaBadge" style="display:none">SLA PASS</span>
+            <span class="status-badge" id="apdexBadge" style="display:none">Apdex 1.00</span>
+            <button class="dark-mode-toggle" onclick="toggleColorblind()" title="Toggle colorblind mode"><span id="cbModeIcon">&#128065;</span></button>
+            <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span id="darkModeIcon">&#9790;</span></button>
+            <div class="live-indicator disconnected" id="liveIndicator"><span class="live-dot"></span><span id="liveLabel">CONNECTING</span></div>
+            <span id="idleInfo" style="display:none;cursor:help;font-size:.8rem;color:var(--color-text-secondary)" title="This dashboard stays open for review after the test ends. It will close automatically if no browser is viewing it. Refresh the page to extend.">&#9432;</span>
+            <!-- Shown only when serverClosing says a NEW test is starting. The CLOSED latch
+                 stays as it is: this tab keeps showing the finished run's results rather than
+                 silently switching to the new one. All that was missing was a way to find the
+                 new run. The replacement server normally rebinds the same port, so a reload usually
+                 reaches it — but start() falls back to port+1..+9 if it cannot, and then the
+                 JMeter log has the real URL. The tooltip says so. -->
+            <a id="newRunNotice" href="javascript:location.reload()" style="display:none;font-size:.8rem;color:var(--color-primary);text-decoration:underline;cursor:pointer" title="Reloading replaces the finished run shown here with the new one. The replacement dashboard normally reuses this port, but if it fell back to another port this page will not find it — check the JMeter log for the new URL.">A new test has started &mdash; reload to switch to it</a>
+            <!-- Shown when a reconnect lands on a DIFFERENT server than the one that served
+                 this page: a restarted run, or another JMeter process that took this port.
+                 Without it the numbers simply start moving again and nothing says the tab is
+                 now watching something else. -->
+            <span id="differentRunNotice" style="display:none;font-size:.8rem;color:var(--color-warning)" title="The dashboard on this port was replaced by a different JMeter run.">&#9888; now showing a different run</span>
+        </div>
+    </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tab-nav">
+    <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">Summary</button>
+    <button class="tab-btn" data-tab="timeline" onclick="switchTab('timeline')">Timeline</button>
+    <button class="tab-btn" data-tab="samplers" onclick="switchTab('samplers')">Samplers</button>
+    <button class="tab-btn" data-tab="errors" onclick="switchTab('errors')">Errors <span id="errorTabCount"></span></button>
+</nav>
+
+<!-- Filter Bar (3 rows, matches report) -->
+<div class="filter-bar" id="filterBar">
+    <div class="filter-row">
+        <label class="filter-label">Palette:</label>
+        <div class="filter-btn-group" id="paletteToggle">
+            <button class="filter-toggle-btn active" data-palette="default">Default</button>
+            <button class="filter-toggle-btn" data-palette="okabe-ito">Okabe-Ito</button>
+            <button class="filter-toggle-btn" data-palette="high-contrast">High Contrast</button>
+        </div>
+        <label class="filter-label">Line:</label>
+        <div class="filter-btn-group" id="lineToggle">
+            <button class="filter-toggle-btn" data-thickness="1">Thin</button>
+            <button class="filter-toggle-btn active" data-thickness="2">Medium</button>
+            <button class="filter-toggle-btn" data-thickness="3">Thick</button>
+        </div>
+        <label class="filter-label">Metric:</label>
+        <div class="filter-btn-group" id="metricToggle">
+            <button class="filter-toggle-btn" data-metric="avgResponseTime">Mean</button>
+            <button class="filter-toggle-btn" data-metric="p50">P50</button>
+            <button class="filter-toggle-btn" data-metric="p90">P90</button>
+            <button class="filter-toggle-btn active" data-metric="p95">P95</button>
+            <button class="filter-toggle-btn" data-metric="p99">P99</button>
+            <button class="filter-toggle-btn" data-metric="maxResponseTime">Max</button>
+        </div>
+        <label class="filter-label" title="One point per period of clock time, the way JMeter draws its report graphs. Longer periods are smoother but show less detail. Auto picks the period from the number of points in the window.">Granularity:</label>
+        <div class="filter-btn-group" id="granularityToggle">
+            <button class="filter-toggle-btn" data-gran="1" title="Raw data: one point per update">2s</button>
+            <button class="filter-toggle-btn" data-gran="3" title="One point per 6s of clock time">6s</button>
+            <button class="filter-toggle-btn" data-gran="5" title="One point per 10s of clock time">10s</button>
+            <button class="filter-toggle-btn" data-gran="15" title="One point per 30s of clock time">30s</button>
+            <button class="filter-toggle-btn" data-gran="30" title="One point per 1m of clock time">1m</button>
+            <button class="filter-toggle-btn active" data-gran="0" title="Automatically select smoothing based on data volume (recommended)">Auto</button>
+        </div>
+        <button class="dark-mode-toggle" onclick="toggleTimeDisplay()" title="Toggle wall-clock / elapsed time" style="padding:2px 8px;font-size:.8rem" id="timeDisplayBtn">&#128339; Clock</button>
+        <label class="filter-label" title="Time range visible on charts. Older data is still available — switch to Full to see it all.">Window:</label>
+        <div class="filter-btn-group" id="windowToggle">
+            <button class="filter-toggle-btn" data-window="60" title="Show last 1 minute of data">1m</button>
+            <button class="filter-toggle-btn" data-window="300" title="Show last 5 minutes of data">5m</button>
+            <button class="filter-toggle-btn" data-window="900" title="Show last 15 minutes of data">15m</button>
+            <button class="filter-toggle-btn" data-window="1800" title="Show last 30 minutes of data">30m</button>
+            <button class="filter-toggle-btn active" data-window="0" title="Show all data since test started (recommended)">Full</button>
+        </div>
+    </div>
+    <div class="filter-row">
+        <label class="filter-label">Samplers:</label>
+        <button class="filter-link-btn" onclick="selectAllSamplers(true)">All</button>
+        <button class="filter-link-btn" onclick="selectAllSamplers(false)">None</button>
+        <span style="margin-left:8px;display:flex;align-items:center;gap:4px">
+            <label class="filter-label">Preset:</label>
+            <select id="presetSelect" style="font-size:.75rem;padding:2px 6px;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-input);color:var(--color-text)" onchange="loadPreset()"><option value="">--</option></select>
+            <button class="filter-link-btn" onclick="savePreset()">Save</button>
+            <button class="filter-link-btn" onclick="deletePreset()">Del</button>
+        </span>
+        <div class="filter-sampler-list" id="samplerFilterList"></div>
+    </div>
+</div>
+
+<!-- Summary Tab -->
+<div class="tab-pane active" id="tab-summary">
+<div class="content">
+    <div class="summary-cards">
+        <div class="summary-card" id="cardSamples"><div class="card-value" id="valSamples">0</div><div class="card-label">Total Samples</div><div class="card-trend" id="trendSamples"></div></div>
+        <div class="summary-card" id="cardErrorRate"><div class="card-value" id="valErrorRate">0%</div><div class="card-label">Error Rate</div><div class="card-trend" id="trendErrorRate"></div></div>
+        <div class="summary-card" id="cardDuration"><div class="card-value" id="valDuration">00:00:00</div><div class="card-label">Duration</div></div>
+        <div class="summary-card" id="cardThreads"><div class="card-value" id="valThreads">0</div><div class="card-label">Max Threads</div></div>
+        <div class="summary-card" id="cardAvgRT"><div class="card-value" id="valAvgRT">0 ms</div><div class="card-label">Avg Response Time</div><div class="card-trend" id="trendAvgRT"></div></div>
+        <div class="summary-card" id="cardP95"><div class="card-value" id="valP95">0 ms</div><div class="card-label">P95</div><div class="card-trend" id="trendP95"></div></div>
+        <div class="summary-card" id="cardThroughput"><div class="card-value" id="valThroughput">0/s</div><div class="card-label">Throughput</div><div class="card-trend" id="trendThroughput"></div></div>
+        <div class="summary-card" id="cardTotalErrors"><div class="card-value" id="valTotalErrors">0</div><div class="card-label">Total Errors</div><div class="card-trend" id="trendErrors"></div></div>
+    </div>
+    <div class="chart-section">
+        <div class="chart-section-header"><h2>Response Time Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFullscreen('summaryRTChart',this)">Fullscreen</button></div></div>
+        <div class="chart-container" id="summaryRTChart"></div>
+    </div>
+</div>
+</div>
+
+<!-- Timeline Tab -->
+<div class="tab-pane" id="tab-timeline">
+<div class="content" id="timelineContent">
+    <div class="chart-section" draggable="true" data-chart-id="responseTimeChart">
+        <div class="chart-section-header"><span class="drag-grip" title="Drag to reorder">&#10495;</span><h2>Response Time Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFullscreen('responseTimeChart',this)">Fullscreen</button></div></div>
+        <div class="chart-container" id="responseTimeChart"></div>
+    </div>
+    <div class="chart-section" draggable="true" data-chart-id="throughputChart">
+        <div class="chart-section-header"><span class="drag-grip" title="Drag to reorder">&#10495;</span><h2>Throughput Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFullscreen('throughputChart',this)">Fullscreen</button></div></div>
+        <div class="chart-container" id="throughputChart"></div>
+    </div>
+    <div class="chart-section" draggable="true" data-chart-id="errorRateChart">
+        <div class="chart-section-header"><span class="drag-grip" title="Drag to reorder">&#10495;</span><h2>Error Rate Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFullscreen('errorRateChart',this)">Fullscreen</button></div></div>
+        <div class="chart-container" id="errorRateChart"></div>
+    </div>
+    <div class="chart-section" draggable="true" data-chart-id="bytesChart">
+        <div class="chart-section-header"><span class="drag-grip" title="Drag to reorder">&#10495;</span><h2>Bytes Throughput Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFullscreen('bytesChart',this)">Fullscreen</button></div></div>
+        <div class="chart-container" id="bytesChart"></div>
+    </div>
+    <div class="chart-section" draggable="true" data-chart-id="connectLatencyChart">
+        <div class="chart-section-header"><span class="drag-grip" title="Drag to reorder">&#10495;</span><h2>Connect Time &amp; Latency Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFullscreen('connectLatencyChart',this)">Fullscreen</button></div></div>
+        <div class="chart-container" id="connectLatencyChart"></div>
+    </div>
+</div>
+</div>
+
+<!-- Samplers Tab -->
+<div class="tab-pane" id="tab-samplers">
+<div class="content">
+    <div class="table-section">
+        <h2>Sampler Statistics</h2>
+        <div class="table-toolbar">
+            <input type="text" class="table-search" id="samplerSearch" placeholder="Filter samplers..." oninput="renderSamplerTable()">
+            <button class="footer-btn" onclick="exportTableCSV('sampler')" style="font-size:.75rem;padding:4px 12px">Export CSV</button>
+            <button class="footer-btn" onclick="S.showChildren=!S.showChildren;this.textContent=S.showChildren?'Hide Children':'Show Children';renderSamplerTable()" style="font-size:.75rem;padding:4px 12px" id="btnToggleChildren">Hide Children</button>
+            <span style="position:relative;display:inline-block"><button class="footer-btn" onclick="toggleColMenu()" style="font-size:.75rem;padding:4px 12px" title="Toggle columns">&#9881; Columns</button><div id="colMenu" style="display:none;position:absolute;top:100%;right:0;z-index:200;background:var(--color-surface);border:1px solid var(--color-border);border-radius:6px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);min-width:160px"></div></span>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="stats-table" id="samplerTable">
+                <thead><tr>
+                    <th onclick="doSort('name')">Sampler</th><th onclick="doSort('samples')">Samples</th><th onclick="doSort('errors')">Errors</th>
+                    <th onclick="doSort('errorRate')">Error %</th><th onclick="doSort('avg')">Mean (ms)</th><th onclick="doSort('p90')">P90 (ms)</th>
+                    <th onclick="doSort('p95')">P95 (ms)</th><th onclick="doSort('p99')">P99 (ms)</th><th onclick="doSort('min')">Min (ms)</th>
+                    <th onclick="doSort('max')">Max (ms)</th><th onclick="doSort('throughput')">Throughput</th>
+                    <th onclick="doSort('receivedKBs')">Recv KB/s</th><th onclick="doSort('sentKBs')">Sent KB/s</th>
+                </tr></thead>
+                <tbody id="samplerTableBody"><tr><td colspan="13" class="no-data">Waiting for data...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Errors Tab -->
+<div class="tab-pane" id="tab-errors">
+<div class="content">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div class="chart-section"><div class="chart-section-header"><h2>Errors by Response Code</h2></div><div class="chart-container" id="errorPieChart" style="height:280px"></div></div>
+        <div class="chart-section"><div class="chart-section-header"><h2>Errors by Sampler</h2></div><div class="chart-container" id="errorBarChart" style="height:280px"></div></div>
+    </div>
+    <div class="table-section">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><h2>Recent Errors <span id="errorCount" style="font-size:.75rem;color:var(--color-text-secondary);font-weight:400"></span></h2><button class="footer-btn" onclick="exportTableCSV('error')" style="font-size:.75rem;padding:4px 12px">Export CSV</button></div>
+        <div style="overflow-x:auto">
+            <table class="stats-table" id="errorTable">
+                <thead><tr><th>Time</th><th>Sampler</th><th>Code</th><th>Message</th><th>URL</th></tr></thead>
+                <tbody id="errorTableBody"><tr><td colspan="5" class="no-data">No errors</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Return to Live floating button -->
+<button class="return-live-btn" id="returnLiveBtn" onclick="returnToLive()">&#8635; Return to Live</button>
+
+<!-- Footer -->
+<footer class="dashboard-footer">
+    <div class="footer-content">
+        <button class="footer-btn danger" id="btnStop" onclick="stopTest()" title="Gracefully stop the test. Running samplers will finish before the test ends.">Stop Test</button>
+        <button class="footer-btn danger" id="btnStopNow" onclick="stopTestNow()" title="Immediately kill the JMeter process. All running samplers will be aborted.">Shutdown</button>
+        <button class="footer-btn" id="btnPause" onclick="togglePause()" title="Pause chart updates. Data is buffered and replayed when you resume — no data is lost.">Pause Updates</button>
+        <button class="footer-btn" onclick="copySummary(this)" title="Copy the summary metrics as an HTML table to clipboard (for Confluence, email, etc.)">Copy Summary</button>
+        <button class="footer-btn" onclick="exportSnapshot()" style="margin-left:8px" title="Download a self-contained HTML snapshot of the current dashboard with all data and charts.">Export Snapshot</button>
+        <div class="footer-spacer"></div>
+    </div>
+</footer>
+
+<script>
+/* ===== Palettes (from Web Insight Report) ===== */
+var PALETTES={
+    'default':['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#3ba272','#fc8452','#9a60b4','#ea7ccc','#5c7bd9','#61ddaa','#65789b','#f6bd16','#7262fd','#78d3f8','#9661bc','#f6903d','#008685','#f08bb4','#0d47a1'],
+    'okabe-ito':['#E69F00','#56B4E9','#009E73','#F0E442','#0072B2','#D55E00','#CC79A7','#999999','#000000','#6699CC'],
+    'high-contrast':['#0000FF','#FF0000','#00AA00','#FF8800','#8800CC','#00CCCC','#CC0066','#666600','#004400','#880000']
+};
+var TOTAL_NAME='\u03A3 Total';
+var TOTAL_COLOR='#333333';
+var LD_TOKEN='__LD_STOP_TOKEN__'; // injected per server instance; guards the stop endpoints
+
+/* ===== State ===== */
+var S={overview:[],ovHead:0,overviewInterval:60000,
+    connected:false,paused:false,pauseBuffer:[],testRunning:false,stopRequested:false,testEndedEvent:false,testStartTime:0,testName:'',
+    currentPalette:'default',lineThickness:2,selectedMetric:'p95',windowSeconds:0,timeDisplay:'clock',granularity:0,
+    samplerVisibility:{},knownSamplers:[],hiddenSamplers:[],customColors:{},
+    timestamps:[],overall:{},samplers:{},samplerStats:{},recentErrors:[],slaStatus:{},slaConfig:{},
+    overallSamples:[],samplerSamples:{},
+    sortCol:'name',sortAsc:true,prevCum:null,charts:{},elapsedInterval:null,hiddenCols:{},errorSummary:{byCode:{},bySampler:{}},expandedSamplers:new Set(),detailCharts:{},detailRows:{},hierarchy:{},showChildren:true,
+    liveMode:true,userZoom:null,
+    presets:{}
+};
+var OVERALL_METRICS=['avgResponseTime','p50','p90','p95','p99','maxResponseTime','throughput','errorRate','activeThreads','receivedBytesPerSec','sentBytesPerSec','avgConnectTime','avgLatency'];
+var SAMPLER_METRICS=['avgResponseTime','p50','p90','p95','p99','maxResponseTime','throughput','errorRate','receivedBytesPerSec','avgConnectTime','avgLatency'];
+// How each metric collapses when the chart groups several slots into one point
+// (downsample): a peak takes the period's max; means, error % and active threads a
+// mean weighted by each slot's sample count, which is exact; a rate the period's
+// samples over the period's length, as JMeter's report divides (TimeRateAggregator:
+// count x 1000 / granularity), a slot without the sampler counting as no samples (an
+// average of only the slots it appeared in overstated a sparse sampler by up to the
+// number of slots in the point). A percentile also takes the weighted mean, which is
+// NOT a percentile; at a 1-minute period the server's exact value for that minute
+// replaces it (minuteOf).
+var DS_MAX={maxResponseTime:1};
+var DS_RATE={throughput:1,receivedBytesPerSec:1,sentBytesPerSec:1};
+var DS_PCT={p50:1,p90:1,p95:1,p99:1};
+var DS_WEIGHTED={avgResponseTime:1,p50:1,p90:1,p95:1,p99:1,avgConnectTime:1,avgLatency:1,errorRate:1,activeThreads:1}; // a slot's active threads is its mean, as in JMeter's reports
+
+/* ===== Helpers ===== */
+/* Exact, grouped: 12,345 — not 12.3K. A reporter that rounds a count can't be
+   checked against JMeter's own report, and 9.1K hides the difference between
+   9,050 and 9,149. Rates keep one decimal, like the Aggregate Report. Always in English,
+   as JMeter's report prints them whatever the machine's language: the page is English,
+   and a German machine's "1.350" ms reads as one and a third milliseconds. */
+var NF_INT=new Intl.NumberFormat('en-US'),NF_1DP=new Intl.NumberFormat('en-US',{minimumFractionDigits:1,maximumFractionDigits:1}); // toLocaleString builds a formatter per call: 0.6 s per update at 1,000 samplers
+function fmtN(n){if(n==null||isNaN(n))return'0';return Number.isInteger(n)?NF_INT.format(n):NF_1DP.format(n)}
+function fmtMs(n){if(n==null||isNaN(n))return'0 ms';if(n>=60000)return(n/60000).toFixed(1)+' min';if(n>=1000)return(n/1000).toFixed(1)+' s';return Math.round(n)+' ms'}
+/* Statistics-table cells, as JMeter's Aggregate Report shows them: whole milliseconds
+   under the "(ms)" headers and KB/s to two decimals. fmtMs's short form is right for
+   cards and tooltips, but in a column headed (ms) it printed 1077 as "1.1 s", and one
+   decimal turned 0.08 and 0.09 KB/s into the same "0.1". Whole milliseconds are
+   truncated, not rounded: the Aggregate Report shows a mean as (long) mean, and so
+   does the Summariser's "Avg:"; rounded, about half of all rows read 1 ms high. The
+   Avg card and the CSV truncate the mean the same way. */
+var NF_2DP=new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function fmtCellMs(n){return NF_INT.format(Math.trunc(n||0))}
+function fmtKB(n){return NF_2DP.format(n||0)}
+function fmtMsAxis(n){if(n==null||isNaN(n))return'0';if(n>=60000)return(n/60000).toFixed(1)+'m';if(n>=1000)return(n/1000).toFixed(1)+'s';return Math.round(n)+'ms'}
+function fmtPct(n){if(n==null||isNaN(n))return'0%';return n.toFixed(2)+'%'}
+function fmtDur(ms){var s=Math.floor(ms/1e3),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
+function fmtTime(ts){if(S.timeDisplay==='elapsed'&&S.testStartTime){var ms=ts-S.testStartTime;if(ms<0)ms=0;return'+'+fmtDur(ms)}var d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')}
+function truncLegend(n){return n.length>30?n.substring(0,27)+'...':n}
+var ESC_H={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'};
+function escH(s){return String(s).replace(/[&<>"]/g,c=>ESC_H[c])} // a DOM node per call cost ~1 ms per 30 table rows
+/* JSON destined for a <script> block, which is NOT the same as JSON.
+   JSON.stringify escapes for JSON; the HTML tokenizer ends a <script> element at the
+   first `</script` no matter what JS string it sits inside. Everything in the snapshot
+   payload comes from sample data, and responseMessage/requestUrl come from the system
+   under test — so a broken endpoint, not a hostile operator, could both destroy the
+   exported file and get script executed in it when someone opened it.
+   Escaping < as < is valid JSON *and* valid JS and parses back to the identical
+   string, so nothing is lost. U+2028/U+2029 are the other two characters JSON permits
+   raw but JS does not. */
+function jsonForScript(o){
+    return JSON.stringify(o)
+        .replace(/</g,'\\u003c')
+        .replace(/\u2028/g,'\\u2028')
+        .replace(/\u2029/g,'\\u2029');
+}
+function getColor(name,idx){if(name===TOTAL_NAME)return TOTAL_COLOR;if(S.customColors[name])return S.customColors[name];var pal=PALETTES[S.currentPalette]||PALETTES['default'];return pal[idx%pal.length]}
+function fmtMiniTime(ts){if(!S.testStartTime)return fmtTime(ts);var elapsed=(ts-S.testStartTime)/1000;if(elapsed<0)elapsed=0;if(elapsed<120)return Math.round(elapsed)+'s';var m=Math.floor(elapsed/60),s=Math.round(elapsed%60);if(elapsed<7200)return m+':'+String(s).padStart(2,'0');return fmtTime(ts)}
+/* The buttons group 1, 3, 5, 15 or 30 updates, so the time each stands for depends on
+   the update interval: label them with it. They read 1s/5s/10s/30s/1m whatever the
+   interval was; at the default 2 s, "1s" plotted a point every 2 s and "5s" every 6 s. */
+function fmtSpan(ms){var s=ms/1000;if(s<60)return(Math.round(s*10)/10)+'s';var m=Math.floor(s/60),r=Math.round(s-m*60);return r?m+'m'+r+'s':m+'m'}
+function labelGranularity(){var iv=S.updateIntervalMs||2000;document.querySelectorAll('#granularityToggle .filter-toggle-btn').forEach(b=>{var n=parseInt(b.dataset.gran);if(!n)return;b.textContent=fmtSpan(n*iv);b.title=n===1?'Raw data: one point per update ('+fmtSpan(iv)+')':'One point per '+fmtSpan(n*iv)+' of clock time: rates, means, error % and max are exact for that period; percentiles are '+(n*iv===S.overviewInterval?'exact for each closed minute (the newest, still open, is an average of the '+fmtSpan(iv)+' values)':'an average of the '+fmtSpan(iv)+' values, an approximation')})}
+function getGranularity(){if(S.granularity>0)return S.granularity;var pts=S.timestamps.length-getWindowStart();if(pts<150)return 1;if(pts<300)return 3;if(pts<600)return 5;if(pts<1500)return 15;return 30}
+function bucketSpan(g){return g*(S.updateIntervalMs||2000)}
+/* A coarser chart point, built the way JMeter's over-time graphs build theirs
+   (TimeStampKeysSelector: time - time % granularity): the fixed clock period
+   [kG, (k+1)G), G being g updates, holding the slots that START in it. The server
+   stamps a slot with its start and aligns slots to the clock, so a period holds whole
+   slots, and once it is over its point never changes. Grouping the slots in view by
+   their position, as this used to, moved every group by one slot on each update while
+   the window slid: a spike's height and place changed with no new data about it (365
+   to 505 ms over 16 updates, measured), and no point matched a period JMeter would
+   report. A point is plotted at the start of its period, as JMeter's report does.
+   Minutes older than the live 2 s slots (the overview head) are one minute each and
+   are drawn as they are. So is the minute the live slots begin in, once the live tier
+   has been pruned partway through it: its earlier slots are gone, so grouping the rest
+   drew part of a minute as the minute, moving and changing on every update for an hour
+   after it ended, while S.overview holds the whole minute exactly.
+   `ov(k)` is this line's own value for the closed minute starting at k (minuteOf);
+   undefined while that minute is open. */
+function downsample(times,values,metric,weights,ov){
+    var g=getGranularity();if(g<=1)return times.map((t,i)=>[t,values[i]]);
+    var iv=S.updateIntervalMs||2000,G=bucketSpan(g),M=S.overviewInterval;
+    var firstLive=S.ovHead<S.timestamps.length?S.timestamps[S.ovHead]:Infinity;
+    var useMax=metric&&DS_MAX[metric],useRate=metric&&DS_RATE[metric],useW=metric&&DS_WEIGHTED[metric]&&weights;
+    var usePct=ov&&metric&&DS_PCT[metric]&&G===M;
+    // The live slots draw from liveFrom on: after the minute they begin in, when the
+    // live tier was pruned partway through it and that minute has closed.
+    var liveFrom=firstLive,seam=null;
+    if(S.ovHead>0&&ov&&firstLive!==Infinity&&firstLive%M!==0){
+        var m=Math.floor(firstLive/M)*M,mv=ov(m);
+        if(mv!==undefined){seam=[m,mv];liveFrom=m+M}
+    }
+    // A period is still filling while the run is live and its last slot has not arrived.
+    var ended=S.testEndTime>0,lastEnd=S.timestamps[S.timestamps.length-1]+iv;
+    var result=[];
+    for(var i=0;i<times.length;){
+        if(times[i]<firstLive){result.push([times[i],values[i]]);i++;continue}
+        if(times[i]<liveFrom){if(seam){result.push(seam);seam=null}i++;continue}
+        var k=Math.floor(times[i]/G)*G,end=i;while(end<times.length&&times[end]<k+G)end++;
+        // cut: began before the live slots (the rest is drawn as minutes); open: still filling
+        var cut=S.ovHead>0&&k<liveFrom,open=!ended&&k+G>lastEnd;
+        var val=null,j;
+        if(useMax){
+            for(j=i;j<end;j++){if(values[j]!=null&&(val==null||values[j]>val))val=values[j]}
+        }else if(useRate){
+            // the period's samples over its length, as JMeter's report divides; over the
+            // seconds covered only where the rest is not known yet (open) or is drawn elsewhere (cut)
+            var sum=0,any=false;for(j=i;j<end;j++){if(values[j]!=null){sum+=values[j];any=true}}
+            val=any?sum/(open||cut?end-i:G/iv):null;
+        }else if(useW){
+            var sw=0,sv=0;for(j=i;j<end;j++){if(values[j]!=null){var w=weights[j]||0;sw+=w;sv+=values[j]*w}}
+            if(sw>0){val=sv/sw}else{var s0=0,c0=0;for(j=i;j<end;j++){if(values[j]!=null){s0+=values[j];c0++}}val=c0?s0/c0:null}
+        }else{
+            var s1=0,c1=0;for(j=i;j<end;j++){if(values[j]!=null){s1+=values[j];c1++}}val=c1?s1/c1:null;
+        }
+        if(usePct&&!cut){var e=ov(k);if(e!==undefined)val=e}
+        // A period that began before the live slots is plotted at their start: at a period
+        // longer than a minute its own start can lie before the last minute's point.
+        result.push([cut?liveFrom:k,val]);i=end;
+    }
+    // No seam point when no slot of the window was in that minute: the window starts after
+    // it. Pushed here, it landed after the newest point and the line ran back to it.
+    return result;
+}
+/* The window's first point when the chart groups slots, moved back to the start of the
+   period the window starts in: the oldest point is a whole period, not a part that
+   shrinks and changes as the window slides (Grafana aligns its range the same way). */
+function groupedWindowStart(){
+    var ws=getWindowStart(),g=getGranularity();
+    if(g<=1||ws<=0||ws>=S.timestamps.length)return ws;
+    var G=bucketSpan(g),k=Math.floor(S.timestamps[ws]/G)*G;
+    while(ws>0&&S.timestamps[ws-1]>=k)ws--;
+    return ws;
+}
+/* The server's exact value for one minute from its minute tier (S.overview, which holds
+   closed minutes only), for a sampler or, with name null, for the whole run: undefined
+   while the minute is still open, null when it had no samples. `scale` converts it to
+   the line's unit (bytes/s to KB/s). */
+var ovIndex={list:null,n:-1,map:null};
+function overviewAt(ts){
+    if(ovIndex.list!==S.overview||ovIndex.n!==S.overview.length){
+        ovIndex.map=new Map();S.overview.forEach(b=>ovIndex.map.set(b.timestamp,b));ovIndex.list=S.overview;ovIndex.n=S.overview.length;
+    }
+    return ovIndex.map.get(ts);
+}
+function minuteOf(name,metric,scale){return k=>{var b=overviewAt(k);if(!b)return undefined;var r=name==null?b.overall:(b.samplers||{})[name];return r&&r[metric]!=null?(scale?r[metric]*scale:r[metric]):null}}
+
+/* ===== Tabs ===== */
+function switchTab(tab){
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
+    if(tab==='samplers'&&S.samplerTableDirty)renderSamplerTable();
+    // Lazy init charts for this tab, then resize + refresh
+    initChartsForTab(tab);
+    setTimeout(()=>{for(var c of Object.values(S.charts))if(c)c.resize();refreshChartsForce();if(tab==='errors')refreshErrorCharts()},50);
+}
+
+/* ===== SSE ===== */
+/* Per-sampler maps arrive columnar, {cols, rows} (Columnar.java): field names
+   once instead of on every row, which was most of an update at scale. They are
+   turned back into objects here, so everything past this point is unchanged. */
+function rowsToObjects(m){
+    if(!m||!m.cols)return m;
+    var o={},c=m.cols,n=c.length;
+    for(var k in m.rows){var r=m.rows[k],x={};for(var i=0;i<n;i++)x[c[i]]=r[i];o[k]=x}
+    return o;
+}
+function decodeColumnar(d){
+    if(d.samplers)d.samplers=rowsToObjects(d.samplers);
+    if(d.samplerStats)d.samplerStats=rowsToObjects(d.samplerStats);
+    [d.recentBuckets,d.overviewBuckets,d.overview].forEach(list=>{if(list)list.forEach(b=>{b.samplers=rowsToObjects(b.samplers)})});
+    return d;
+}
+var eventSource=null,reconnTimer=null;
+function connectSSE(){
+    if(S.serverClosed)return;
+    if(eventSource)eventSource.close();
+    eventSource=new EventSource('/api/events');
+    eventSource.addEventListener('catchup',e=>handleCatchup(decodeColumnar(JSON.parse(e.data))));
+    eventSource.addEventListener('bucket',e=>{var d=decodeColumnar(JSON.parse(e.data));if(S.paused){S.pauseBuffer.push(d);var cap=maxSeriesPoints();if(S.pauseBuffer.length>cap)S.pauseBuffer.splice(0,S.pauseBuffer.length-cap).forEach(x=>{if(x.overview)Array.prototype.push.apply(S.overview,x.overview);var f=S.pauseBuffer[0];if(f){if(x.knownSamplers&&!f.knownSamplers){f.knownSamplers=x.knownSamplers;f.hiddenSamplers=x.hiddenSamplers}if(x.hierarchy&&!f.hierarchy)f.hierarchy=x.hierarchy}})}else{handleBucket(d)}}); // a dropped slot is in the overview's minutes, but the minutes themselves, and the sampler list, hidden list and hierarchy (sent only when they change), must not be dropped
+    eventSource.addEventListener('event',e=>handleEvent(JSON.parse(e.data)));
+    eventSource.onopen=()=>{S.connected=true;if(reconnTimer){clearTimeout(reconnTimer);reconnTimer=null}document.getElementById('liveLabel').textContent='CONNECTED';document.getElementById('liveIndicator').classList.remove('disconnected')};
+    eventSource.onerror=()=>{S.connected=false;updateConnectionUI();eventSource.close();reconnTimer=setTimeout(connectSSE,3000)};
+}
+
+// Full reset of everything derived from a server's data stream. Called from
+// DOMContentLoaded and from every catchup (initial connect AND reconnect): the
+// reconnect may be to a NEW server on the same port (GUI re-run, laptop wake),
+// so sampler names, visibility, trends and error state must not leak between
+// runs — only user prefs (customColors, palette, hiddenCols) survive.
+function resetSeriesState(){
+    S.timestamps=[];S.overall={};OVERALL_METRICS.forEach(m=>S.overall[m]=[]);
+    S.overview=[];S.ovHead=0;
+    S.samplers={};S.pauseBuffer=[];S.overallSamples=[];S.samplerSamples={};
+    S.knownSamplers=[];S.samplerVisibility={};S.prevCum=null;S.hierarchy={};
+    S.recentErrors=[];S.errorSummary={byCode:{},bySampler:{}};S.slaStatus={};
+    Object.keys(S.detailCharts).forEach(k=>{try{S.detailCharts[k].dispose()}catch(e){}});
+    S.detailCharts={};S.detailRows={};S.expandedSamplers=new Set();
+}
+/* Server-supplied state that is not test data: the real idle timeout, and which server
+   we are talking to. Both arrive on every catchup, including reconnects. */
+function applyServerIdentity(d){
+    if(d.idleTimeoutSeconds!=null){
+        var el=document.getElementById('idleInfo');
+        if(el){
+            var base='This dashboard stays open for review after the test ends. ';
+            // 0 means "stay up indefinitely" — the server schedules no timer at all, so
+            // promising an automatic close would be simply untrue.
+            el.title=d.idleTimeoutSeconds>0
+                ? base+'It will close automatically after '+fmtIdle(d.idleTimeoutSeconds)
+                     +' if no browser is viewing it. Refresh the page to extend.'
+                : base+'It will stay open until JMeter exits (idle timeout is disabled).';
+        }
+    }
+    if(d.serverInstanceId){
+        // First catchup on this page establishes the baseline; a later change means the
+        // EventSource reconnected to a DIFFERENT server on the same port.
+        if(S.serverInstanceId&&S.serverInstanceId!==d.serverInstanceId){
+            var warn=document.getElementById('differentRunNotice');
+            if(warn)warn.style.display='';
+        }
+        S.serverInstanceId=d.serverInstanceId;
+    }
+}
+function fmtIdle(s){
+    if(s%3600===0)return (s/3600)+(s===3600?' hour':' hours');
+    if(s%60===0)return (s/60)+(s===60?' minute':' minutes');
+    return s+(s===1?' second':' seconds');
+}
+function handleCatchup(d){
+    // Catch-up resends the full history (initial connect and every reconnect),
+    // so reset all series state before appending — otherwise a transient drop
+    // duplicates every charted point and merges old runs into new ones (ghost
+    // samplers in the filter bar, trend arrows against the previous run).
+    resetSeriesState();
+    applyServerIdentity(d);
+    S.testName=d.testName||'JMeter Load Test';S.testStartTime=d.testStartTime||Date.now();
+    // A catchup may come from a NEW server on this port, so drop any stale
+    // "Stopping" latch. If it is a reconnect during the same run's wind-down,
+    // the button briefly re-enables — harmless, a second stop is a no-op.
+    S.testRunning=d.testRunning!==false;S.testEndTime=d.testEndTime||0;S.stopRequested=false;S.testEndedEvent=false;S.slaConfig=d.slaConfig||{};S.hiddenSamplers=d.hiddenSamplers||[];
+    // Before renderSamplerTable below: drawn without it, children lost their indent on a
+    // reconnect with the Samplers tab open.
+    if(d.hierarchy)S.hierarchy=d.hierarchy;
+    if(d.interval)S.updateIntervalMs=d.interval;if(d.maxRetentionMs)S.maxRetentionMs=d.maxRetentionMs;
+    labelGranularity();
+    document.getElementById('testName').textContent=S.testName;document.title=S.testName+' \u2014 Live Dashboard';
+    if(d.knownSamplers)d.knownSamplers.forEach(n=>discoverSampler(n));
+    if(d.cumulativeStats)updateCards(d.cumulativeStats);
+    if(d.samplerStats){S.samplerStats=d.samplerStats;renderSamplerTable()}
+    if(d.slaStatus)S.slaStatus=d.slaStatus;
+    if(d.recentBuckets)d.recentBuckets.forEach(b=>appendBucket(b));
+    if(d.overviewBuckets){S.overview=d.overviewBuckets;if(d.overviewInterval)S.overviewInterval=d.overviewInterval}
+    syncOverviewHead();
+    if(d.recentErrors){S.recentErrors=d.recentErrors;renderErrorTable()}
+    if(d.errorSummary)S.errorSummary=d.errorSummary;
+    buildFilterBar();initCharts();try{refreshChartsForce();refreshErrorCharts()}catch(e){console.error('refreshCharts:',e)}updateConnectionUI();updateTestStatusUI();startElapsedTimer();updateSlaBadge();
+    if(!S.testRunning)document.getElementById('idleInfo').style.display='';
+}
+function handleBucket(d){
+    // The tab the plugin opens connects before the first sample, so its catch-up has no
+    // hidden list and no hierarchy; both arrive here when they change. The hidden list only
+    // decides a NEW sampler's starting state, so a sampler checked back on stays checked.
+    if(d.hiddenSamplers)S.hiddenSamplers=d.hiddenSamplers;
+    if(d.hierarchy)S.hierarchy=d.hierarchy;
+    if(d.knownSamplers){var nd=false;d.knownSamplers.forEach(n=>{if(!S.knownSamplers.includes(n)){discoverSampler(n);nd=true}});if(nd)buildFilterBar()}
+    // Buckets buffered during a pause were captured mid-run and still say
+    // testRunning:true — replaying them after the testEnded event must not
+    // resurrect the Running state (re-enabled stop button, live-looking
+    // charts). The latch only lifts on a real new run (testStarted/catchup).
+    S.testRunning=d.testRunning!==false&&!S.testEndedEvent;
+    // A test that ends a few idle seconds after its last sample sends its last minute
+    // with no slot (LiveAggregator.closeDue): take the minute and the summaries, add no point.
+    if(d.timestamp!=null)appendBucket(d);
+    if(d.overview){if(d.overviewInterval)S.overviewInterval=d.overviewInterval;Array.prototype.push.apply(S.overview,d.overview)}
+    syncOverviewHead();
+    if(d.cumulative)updateCards(d.cumulative);
+    if(d.samplerStats){S.samplerStats=d.samplerStats;renderSamplerTable()}
+    if(d.slaStatus)S.slaStatus=d.slaStatus;
+    if(d.recentErrors){S.recentErrors=d.recentErrors}
+    if(d.errorSummary)S.errorSummary=d.errorSummary;
+    scheduleChartRefresh();updateTestStatusUI();renderErrorTable();updateSlaBadge();
+}
+/* Charts are redrawn in their own task, after the numbers: with a series per
+   sampler, parsing an update and drawing it in one task blocked the page for
+   200-400 ms at 1,000 samplers. Updates arriving back to back (a paused tab
+   resuming) are drawn once. */
+var chartRefreshPending=false;
+function scheduleChartRefresh(){
+    if(chartRefreshPending)return;chartRefreshPending=true;
+    setTimeout(()=>{chartRefreshPending=false;try{refreshAfterBucket()}catch(e){console.error('refreshCharts:',e)}},0);
+}
+function handleEvent(d){if(d.event==='serverClosing'){S.serverClosed=true;if(eventSource)eventSource.close();if(reconnTimer){clearTimeout(reconnTimer);reconnTimer=null}S.connected=false;document.getElementById('liveLabel').textContent='CLOSED';document.getElementById('liveIndicator').classList.add('disconnected');
+    /* Keep the latch and keep this run's data on screen — a tab must not silently switch
+       to the next run (pinned by server-closing.spec.js). Only ADD a way to reach the new
+       run. serverClosing is only ever broadcast with reason=newTestStarting; an idle
+       shutdown sends no event at all and the tab simply goes disconnected. The check is
+       defensive, so a future reason cannot silently inherit the reload link. */
+    if(d.data&&d.data.reason==='newTestStarting'){var n=document.getElementById('newRunNotice');if(n)n.style.display=''}}
+    else if(d.event==='testEnded'){S.testRunning=false;S.testEndedEvent=true;if(d.data&&d.data.endTime)S.testEndTime=d.data.endTime;stopElapsedTimer();renderElapsed();try{refreshChartsForce()}catch(e){}updateTestStatusUI();document.getElementById('idleInfo').style.display=''}else if(d.event==='testStarted'){S.testRunning=true;S.testEndTime=0;S.stopRequested=false;S.testEndedEvent=false;S.testStartTime=d.data?.startTime||Date.now();updateTestStatusUI();startElapsedTimer();document.getElementById('idleInfo').style.display='none'}}
+
+/* ===== Sampler Discovery ===== */
+function discoverSampler(name){
+    if(S.knownSamplers.includes(name))return;
+    S.knownSamplers.push(name);S.samplers[name]={};
+    SAMPLER_METRICS.forEach(m=>S.samplers[name][m]=new Array(S.timestamps.length).fill(null));
+    S.samplerSamples[name]=new Array(S.timestamps.length).fill(0);
+    S.samplerVisibility[name]=!S.hiddenSamplers.includes(name);
+}
+
+/* ===== Time-Series ===== */
+function appendBucket(b){
+    S.timestamps.push(b.timestamp);
+    var ov=b.overall||{};OVERALL_METRICS.forEach(m=>{if(!S.overall[m])S.overall[m]=[];S.overall[m].push(ov[m]!=null?ov[m]:null)});
+    S.overallSamples.push(ov.samples!=null?ov.samples:0);
+    var sm=b.samplers||{};
+    S.knownSamplers.forEach(name=>{
+        if(!S.samplers[name]){S.samplers[name]={};SAMPLER_METRICS.forEach(m=>S.samplers[name][m]=[])}
+        if(!S.samplerSamples[name])S.samplerSamples[name]=[];
+        var sd=sm[name];SAMPLER_METRICS.forEach(m=>{if(!S.samplers[name][m])S.samplers[name][m]=[];S.samplers[name][m].push(sd?(sd[m]!=null?sd[m]:null):null)});
+        S.samplerSamples[name].push(sd?(sd.samples||0):0);
+    });
+    trimSeries();
+}
+// Bound the in-memory series to the server's retention window (plus a small
+// margin) so a long soak or a laptop-sleep blip can't grow the arrays forever.
+function maxSeriesPoints(){
+    if(S.maxRetentionMs&&S.updateIntervalMs)return Math.ceil(S.maxRetentionMs/S.updateIntervalMs)+10;
+    return 100000; // safety cap when retention/interval are unknown
+}
+function trimSeries(){
+    // Only the live (update-interval) points count against the cap; the
+    // overview head in front of them is bounded by the run's length in minutes.
+    var cap=maxSeriesPoints(),excess=S.timestamps.length-S.ovHead-cap;
+    if(excess>0)spliceSeries(S.ovHead,excess);
+}
+function spliceSeries(at,count){
+    if(count<=0)return;
+    S.timestamps.splice(at,count);
+    OVERALL_METRICS.forEach(m=>{if(S.overall[m])S.overall[m].splice(at,count)});
+    S.overallSamples.splice(at,count);
+    S.knownSamplers.forEach(name=>{var s=S.samplers[name];if(s)SAMPLER_METRICS.forEach(m=>{if(s[m])s[m].splice(at,count)});if(S.samplerSamples[name])S.samplerSamples[name].splice(at,count)});
+}
+/* The whole run at one minute. The server keeps the live window at the update
+   interval for its retention period only (default 1 h) and the whole run at one
+   minute, the HTML report's default resolution. Overview points are charted
+   where the live window no longer reaches: the first S.ovHead points of every
+   series are minute points, all ending before the first live point. Runs
+   shorter than the window never have any. Rates are per second at either
+   resolution; a minute point's percentiles are that minute's. */
+function syncOverviewHead(){
+    var firstLive=S.timestamps.length>S.ovHead?S.timestamps[S.ovHead]:null,want=0;
+    if(firstLive!=null)while(want<S.overview.length&&S.overview[want].timestamp+S.overviewInterval<=firstLive)want++;
+    if(want===S.ovHead)return;
+    spliceSeries(0,S.ovHead);
+    var bs=S.overview.slice(0,want);
+    bs.forEach(b=>Object.keys(b.samplers||{}).forEach(n=>discoverSampler(n)));
+    S.timestamps.splice(0,0,...bs.map(b=>b.timestamp));
+    OVERALL_METRICS.forEach(m=>{if(!S.overall[m])S.overall[m]=new Array(S.timestamps.length-bs.length).fill(null);
+        S.overall[m].splice(0,0,...bs.map(b=>{var v=(b.overall||{})[m];return v!=null?v:null}))});
+    S.overallSamples.splice(0,0,...bs.map(b=>(b.overall&&b.overall.samples)||0));
+    S.knownSamplers.forEach(name=>{
+        var s=S.samplers[name];
+        SAMPLER_METRICS.forEach(m=>{if(!s[m])s[m]=new Array(S.timestamps.length-bs.length).fill(null);
+            s[m].splice(0,0,...bs.map(b=>{var sd=(b.samplers||{})[name];return sd&&sd[m]!=null?sd[m]:null}))});
+        S.samplerSamples[name].splice(0,0,...bs.map(b=>{var sd=(b.samplers||{})[name];return sd?(sd.samples||0):0}));
+    });
+    S.ovHead=want;
+}
+function getWindowStart(){
+    if(!S.windowSeconds||!S.timestamps.length)return 0;
+    // The last N seconds OF THE RUN: up to now while it runs, up to its end once it has
+    // ended. Measured from the wall clock, an ended run's windows went empty a minute
+    // after the end, and a tab opened later (the review the server stays up for) could
+    // use nothing but Full. testEndTime, not testRunning: refreshChartsForce sets
+    // testRunning for the duration of a redraw.
+    var cutoff=(S.testEndTime>0?S.testEndTime:Date.now())-S.windowSeconds*1e3;
+    for(var i=0;i<S.timestamps.length;i++){if(S.timestamps[i]>=cutoff)return i}
+    return S.timestamps.length;
+}
+
+/* ===== Charts ===== */
+var TAB_CHARTS={summary:['summaryRTChart'],timeline:['responseTimeChart','throughputChart','errorRateChart','bytesChart','connectLatencyChart'],errors:['errorPieChart','errorBarChart']};
+function initCharts(){
+    // Dispose any existing
+    for(var k of Object.keys(S.charts))if(S.charts[k]){S.charts[k].dispose();delete S.charts[k]}
+    // Only init charts on the currently active tab
+    var activeTab=document.querySelector('.tab-btn.active')?.dataset.tab||'summary';
+    initChartsForTab(activeTab);
+    window.addEventListener('resize',()=>{for(var c of Object.values(S.charts))if(c)c.resize()});
+}
+function initChartsForTab(tab){
+    var ids=TAB_CHARTS[tab];if(!ids)return;
+    var newCharts=[];
+    ids.forEach(id=>{
+        if(S.charts[id])return; // already initialized
+        var el=document.getElementById(id);if(!el)return;
+        S.charts[id]=echarts.init(el);
+        S.charts[id].on('dataZoom',()=>{if(S.liveMode){S.liveMode=false;updateExploreUI()}});
+        newCharts.push(S.charts[id]);
+    });
+    // Connect all timeline charts so zoom/pan syncs across them
+    if(tab==='timeline'){
+        var tlCharts=TAB_CHARTS.timeline.map(id=>S.charts[id]).filter(c=>c);
+        if(tlCharts.length>1)echarts.connect(tlCharts);
+    }
+}
+
+function refreshChartsForce(){var prev=S.liveMode,prevRun=S.testRunning;S.liveMode=true;S.testRunning=true;refreshCharts();S.liveMode=prev;S.testRunning=prevRun}
+// Buckets can arrive after the test has ended: the server broadcasts the
+// testEnded event BEFORE it flushes the final partial bucket, and a paused
+// dashboard replays its buffer whenever the user resumes. By then the
+// "chart is final" guards in refreshCharts/refreshDetailCharts refuse to
+// paint, so without forcing here the last bucket of every run reaches the
+// series arrays and the metric cards but never the charts.
+function refreshAfterBucket(){
+    if(S.testRunning){refreshCharts();refreshErrorCharts();refreshDetailCharts();return}
+    var prev=S.liveMode;S.liveMode=true;S.testRunning=true;
+    try{refreshCharts();refreshErrorCharts();refreshDetailCharts()}finally{S.liveMode=prev;S.testRunning=false}
+}
+function refreshCharts(){
+    if(!S.liveMode)return; // User is exploring — don't overwrite their zoom
+    if(!S.testRunning&&S.timestamps.length>0)return; // Test ended — chart is final
+    if(!Object.keys(S.charts).length)return;
+    var wStart=groupedWindowStart(),times=S.timestamps.slice(wStart),metric=S.selectedMetric;
+    function wSlice(arr){return arr?arr.slice(wStart):[]}
+    var metricLabels={avgResponseTime:'Mean',p50:'P50',p90:'P90',p95:'P95',p99:'P99',maxResponseTime:'Max'};
+    // Build and draw only the charts on screen; a hidden tab's charts are
+    // drawn when it is shown (switchTab). Each chart has a series per sampler,
+    // and building all six on every update, whatever the tab, cost ~0.8 s per
+    // update at 1,000 samplers.
+    function shown(id){var el=S.charts[id]&&document.getElementById(id);return !!el&&el.getClientRects().length>0}
+
+    // Build per-sampler series for response time
+    function buildRTSeries(){
+        var series=[];
+        S.knownSamplers.forEach((name,idx)=>{
+            if(!S.samplerVisibility[name])return;
+            var data=wSlice(S.samplers[name]?.[metric]);
+            series.push({name:name,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:S.lineThickness},data:downsample(times,data,metric,wSlice(S.samplerSamples[name]),minuteOf(name,metric)),itemStyle:{color:getColor(name,idx)}});
+        });
+        // Total series — exact per-bucket overall value computed server-side
+        // (an average of per-sampler percentiles is not a percentile)
+        if(S.samplerVisibility[TOTAL_NAME]&&S.knownSamplers.length){
+            var totalData=downsample(times,wSlice(S.overall[metric]),metric,wSlice(S.overallSamples),minuteOf(null,metric));
+            series.push({name:TOTAL_NAME,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:S.lineThickness+1,type:'dashed'},data:totalData,itemStyle:{color:TOTAL_COLOR},z:10});
+        }
+        return series;
+    }
+
+    var commonOpts=function(yName){
+        var o={animation:false,grid:{left:65,right:30,top:45,bottom:80},
+            toolbox:{show:true,right:8,top:0,feature:{saveAsImage:{type:'png',title:'Save PNG',pixelRatio:2}},iconStyle:{borderColor:getTheme().textColor}},
+            tooltip:{trigger:'axis',backgroundColor:'rgba(0,0,0,.85)',borderWidth:0,textStyle:{color:'#fff',fontSize:11},confine:true},
+            legend:{bottom:5,type:'scroll',textStyle:{color:getTheme().textColor,fontSize:10},formatter:truncLegend,tooltip:{show:true}},
+            xAxis:{type:'time',axisLine:{lineStyle:{color:getTheme().lineColor}},axisLabel:{color:getTheme().textColor,fontSize:11,formatter:v=>fmtTime(v)},splitLine:{show:false}},
+            yAxis:{type:'value',name:yName,min:0,minInterval:yName.includes('ms')?1:undefined,nameTextStyle:{color:getTheme().textColor,fontSize:11},axisLine:{show:false},axisLabel:{color:getTheme().textColor,fontSize:11,formatter:yName.includes('ms')||yName.includes('Response')?fmtMsAxis:undefined},splitLine:{lineStyle:{color:getTheme().splitLineColor}}},
+            dataZoom:[{type:'inside',xAxisIndex:0},{type:'slider',xAxisIndex:0,bottom:38,height:18,left:65,right:60,labelFormatter:v=>fmtTime(v)}]};
+        // minInterval: fmtMsAxis prints whole ms, so ticks closer than 1 ms repeated their
+        // labels (all-zero connect/latency read 0ms 0ms 0ms 1ms 1ms 1ms). labelFormatter: the
+        // slider's handle labels used ECharts' "yyyy-MM-dd HH:mm:ss" and ran off the chart;
+        // left/right inset it so both handles' labels fit inside the chart (the grid's right 30 does not).
+        // Data is windowed via slice at render time (non-destructive)
+        return o;
+    };
+
+    // Summary & Timeline response time
+    if(shown('summaryRTChart')||shown('responseTimeChart')){
+    var rtSeries=buildRTSeries();
+    var rtOpts=commonOpts('Response Time (ms)');
+    rtOpts.series=rtSeries;
+    rtOpts.tooltip.formatter=params=>{if(!params.length)return'';var h='<div style="font-weight:600;margin-bottom:4px">'+fmtTime(params[0].value[0])+'</div>';params.forEach(p=>{if(p.value[1]!=null)h+='<div style="display:flex;gap:6px;align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+p.color+'"></span><span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escH(p.seriesName)+'</span><span style="margin-left:auto;font-weight:600;padding-left:8px">'+fmtMs(p.value[1])+'</span></div>'});return h};
+    // SLA markline
+    if(S.slaConfig.p95&&(metric==='p95'||metric==='p99')){rtOpts.series.length&&(rtOpts.series[0].markLine={silent:true,data:[{yAxis:S.slaConfig.p95,label:{formatter:'SLA',position:'insideEndTop'},lineStyle:{color:'#ef4444',type:'dashed',width:1}}]})}
+    if(shown('summaryRTChart'))S.charts.summaryRTChart.setOption(rtOpts,true);
+    if(shown('responseTimeChart'))S.charts.responseTimeChart.setOption(rtOpts,true);
+    }
+
+    // Throughput
+    if(shown('throughputChart')){
+    var tpSeries=[];
+    S.knownSamplers.forEach((name,idx)=>{if(!S.samplerVisibility[name])return;var data=wSlice(S.samplers[name]?.throughput);tpSeries.push({name:name,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:S.lineThickness},data:downsample(times,data,'throughput',null,minuteOf(name,'throughput')),itemStyle:{color:getColor(name,idx)},yAxisIndex:0})});
+    if(S.samplerVisibility[TOTAL_NAME]&&S.knownSamplers.length){tpSeries.push({name:TOTAL_NAME,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:S.lineThickness+1,type:'dashed'},data:downsample(times,wSlice(S.overall.throughput),'throughput',null,minuteOf(null,'throughput')),itemStyle:{color:TOTAL_COLOR},yAxisIndex:0,z:10})}
+    tpSeries.push({name:'Active Threads',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:1,type:'dashed',color:'#91cc75'},data:downsample(times,wSlice(S.overall.activeThreads),'activeThreads',wSlice(S.overallSamples),minuteOf(null,'activeThreads')),itemStyle:{color:'#91cc75'},yAxisIndex:1});
+    var tpOpts=commonOpts('req/s');tpOpts.grid.right=80;tpOpts.dataZoom[1].right=80;
+    tpOpts.yAxis=[{type:'value',name:'req/s',min:0,nameTextStyle:{color:getTheme().textColor,fontSize:11},axisLine:{show:false},axisLabel:{color:getTheme().textColor,fontSize:11},splitLine:{lineStyle:{color:getTheme().splitLineColor}}},{type:'value',name:'threads',min:0,nameTextStyle:{color:getTheme().textColor,fontSize:11},axisLine:{show:false},axisLabel:{color:getTheme().textColor,fontSize:11},splitLine:{show:false}}];
+    tpOpts.series=tpSeries;
+    tpOpts.tooltip.formatter=params=>{if(!params.length)return'';var h='<div style="font-weight:600;margin-bottom:4px">'+fmtTime(params[0].value[0])+'</div>';params.forEach(p=>{if(p.value[1]!=null){var v=p.seriesName==='Active Threads'?Math.round(p.value[1]):fmtN(p.value[1])+'/s';h+='<div style="display:flex;gap:6px;align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+p.color+'"></span><span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escH(p.seriesName)+'</span><span style="margin-left:auto;font-weight:600;padding-left:8px">'+v+'</span></div>'}});return h};
+    S.charts.throughputChart.setOption(tpOpts,true);
+    }
+
+    // Error Rate
+    if(shown('errorRateChart')){
+    var erSeries=[];
+    S.knownSamplers.forEach((name,idx)=>{if(!S.samplerVisibility[name])return;var data=wSlice(S.samplers[name]?.errorRate);erSeries.push({name:name,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:S.lineThickness},areaStyle:{opacity:.1},data:downsample(times,data,'errorRate',wSlice(S.samplerSamples[name]),minuteOf(name,'errorRate')),itemStyle:{color:getColor(name,idx)}})});
+    var erOpts=commonOpts('Error Rate (%)');erOpts.series=erSeries;
+    erOpts.tooltip.formatter=params=>{if(!params.length)return'';var h='<div style="font-weight:600;margin-bottom:4px">'+fmtTime(params[0].value[0])+'</div>';params.forEach(p=>{if(p.value[1]!=null)h+='<div style="display:flex;gap:6px;align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+p.color+'"></span><span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escH(p.seriesName)+'</span><span style="margin-left:auto;font-weight:600;padding-left:8px">'+fmtPct(p.value[1])+'</span></div>'});return h};
+    if(S.slaConfig.errorRate){erSeries.length&&(erSeries[0].markLine={silent:true,data:[{yAxis:S.slaConfig.errorRate,label:{formatter:'SLA',position:'insideEndTop'},lineStyle:{color:'#ef4444',type:'dashed',width:1}}]})}
+    S.charts.errorRateChart.setOption(erOpts,true);
+    }
+
+    // Bytes Throughput
+    if(shown('bytesChart')){
+    var bySeries=[];
+    S.knownSamplers.forEach((name,idx)=>{if(!S.samplerVisibility[name])return;
+        var data=wSlice(S.samplers[name]?.receivedBytesPerSec);
+        // Keep a real 0 KB/s interval as 0 (not null) so connectNulls doesn't
+        // bridge across it and paint bandwidth where there was none
+        var kbData=data.map(v=>v!=null?v/1024:null);
+        bySeries.push({name:name+' (recv)',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:S.lineThickness},
+            data:downsample(times,kbData,'receivedBytesPerSec',null,minuteOf(name,'receivedBytesPerSec',1/1024)),itemStyle:{color:getColor(name,idx)},stack:null});
+    });
+    var byOpts=commonOpts('KB/s');byOpts.series=bySeries;
+    byOpts.tooltip.formatter=params=>{if(!params.length)return'';var h='<div style="font-weight:600;margin-bottom:4px">'+fmtTime(params[0].value[0])+'</div>';params.forEach(p=>{if(p.value[1]!=null)h+='<div style="display:flex;gap:6px;align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+p.color+'"></span><span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escH(p.seriesName)+'</span><span style="margin-left:auto;font-weight:600;padding-left:8px">'+fmtN(p.value[1])+' KB/s</span></div>'});return h};
+    S.charts.bytesChart.setOption(byOpts,true);
+    }
+
+    // Connect Time & Latency
+    if(shown('connectLatencyChart')){
+    var clSeries=[];
+    S.knownSamplers.forEach((name,idx)=>{if(!S.samplerVisibility[name])return;
+        var ct=wSlice(S.samplers[name]?.avgConnectTime),lt=wSlice(S.samplers[name]?.avgLatency);
+        var col=getColor(name,idx);
+        clSeries.push({name:name+' (latency)',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:S.lineThickness},data:downsample(times,lt,'avgLatency',wSlice(S.samplerSamples[name]),minuteOf(name,'avgLatency')),itemStyle:{color:col}});
+        clSeries.push({name:name+' (connect)',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:Math.max(1,S.lineThickness-1),type:'dashed'},data:downsample(times,ct,'avgConnectTime',wSlice(S.samplerSamples[name]),minuteOf(name,'avgConnectTime')),itemStyle:{color:col}});
+    });
+    var clOpts=commonOpts('Connect / Latency (ms)');clOpts.series=clSeries;
+    clOpts.tooltip.formatter=params=>{if(!params.length)return'';var h='<div style="font-weight:600;margin-bottom:4px">'+fmtTime(params[0].value[0])+'</div>';params.forEach(p=>{if(p.value[1]!=null)h+='<div style="display:flex;gap:6px;align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+p.color+'"></span><span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escH(p.seriesName)+'</span><span style="margin-left:auto;font-weight:600;padding-left:8px">'+fmtMs(p.value[1])+'</span></div>'});return h};
+    S.charts.connectLatencyChart.setOption(clOpts,true);
+    }
+}
+
+function getTheme(){var dk=document.body.classList.contains('dark-mode');return{textColor:dk?'#94a3b8':'#64748b',lineColor:dk?'#374151':'#e2e8f0',splitLineColor:dk?'#1e293b':'#f1f5f9'}}
+
+/* ===== Live / Explore Mode ===== */
+function returnToLive(){S.liveMode=true;S.userZoom=null;document.getElementById('returnLiveBtn').classList.remove('visible');updateExploreUI();refreshCharts()}
+function updateExploreUI(){
+    var ind=document.getElementById('liveIndicator'),lbl=document.getElementById('liveLabel');
+    if(!S.liveMode&&S.connected&&S.testRunning){ind.classList.add('exploring');ind.classList.remove('ended','disconnected');lbl.textContent='EXPLORING';document.getElementById('returnLiveBtn').classList.add('visible')}
+    else{ind.classList.remove('exploring');document.getElementById('returnLiveBtn').classList.remove('visible');updateConnectionUI()}
+}
+
+/* ===== Fullscreen ===== */
+function toggleFullscreen(chartId,btn){
+    var el=document.getElementById(chartId);if(!el)return;
+    var section=el.closest('.chart-section');if(!section)return;
+    section.classList.toggle('chart-fullscreen');
+    btn.textContent=section.classList.contains('chart-fullscreen')?'Exit Fullscreen':'Fullscreen';
+    setTimeout(()=>{if(S.charts[chartId])S.charts[chartId].resize()},50);
+}
+
+/* ===== Cards ===== */
+function updateCards(cum){
+    S.cumulative=cum; // authoritative overall stats — also feeds the Σ Total table row
+    setText('valSamples',fmtN(cum.totalSamples));
+    var er=cum.overallErrorRate||0;setText('valErrorRate',fmtPct(er));
+    var ec=document.getElementById('cardErrorRate');ec.classList.toggle('card-error',er>0);
+    // The server value is authoritative in every message — after test end it is
+    // the exact first-to-last-sample duration (the final one-shot bucket and
+    // catchup both carry it), so never freeze it on the old periodic value.
+    if(cum.elapsedTime!=null)S.lastElapsed=cum.elapsedTime;
+    setText('valDuration',fmtDur(S.lastElapsed));
+    setText('valThreads',cum.maxThreads||0);
+    setText('valAvgRT',fmtMs(Math.trunc(cum.avgResponseTime||0)));
+    setText('valP95',fmtMs(cum.p95));
+    setText('valThroughput',fmtN(cum.overallThroughput)+'/s');
+    setText('valTotalErrors',fmtN(cum.totalErrors));
+    setText('threadInfo',(cum.activeThreads||0)+'/'+(cum.maxThreads||0));
+    // Trend indicators (compare to previous cumulative)
+    if(S.prevCum){
+        setTrend('trendSamples',cum.totalSamples,S.prevCum.totalSamples,'up');
+        setTrend('trendErrorRate',er,S.prevCum.overallErrorRate||0,'down');
+        setTrend('trendAvgRT',cum.avgResponseTime,S.prevCum.avgResponseTime,'down');
+        setTrend('trendP95',cum.p95,S.prevCum.p95,'down');
+        setTrend('trendThroughput',cum.overallThroughput,S.prevCum.overallThroughput,'up');
+        setTrend('trendErrors',cum.totalErrors,S.prevCum.totalErrors,'down');
+    }
+    S.prevCum={totalSamples:cum.totalSamples,overallErrorRate:er,avgResponseTime:cum.avgResponseTime,p95:cum.p95,overallThroughput:cum.overallThroughput,totalErrors:cum.totalErrors};
+    // Apdex badge
+    if(cum.apdex!=null){
+        var ab=document.getElementById('apdexBadge');ab.style.display='';
+        var a=cum.apdex,lbl='Apdex '+a.toFixed(2);ab.textContent=lbl;
+        if(cum.apdexThreshold!=null&&cum.apdexToleratedThreshold!=null)ab.title='Satisfied up to '+fmtN(cum.apdexThreshold)+' ms, tolerating up to '+fmtN(cum.apdexToleratedThreshold)+' ms: the thresholds of JMeter\'s HTML report';
+        if(a>0.94)ab.className='status-badge badge-pass';
+        else if(a>0.85)ab.className='status-badge badge-pass';
+        else if(a>0.70)ab.className='status-badge badge-warn';
+        else ab.className='status-badge badge-fail';
+    }
+}
+function setTrend(id,cur,prev,goodDir){
+    var el=document.getElementById(id);if(!el)return;
+    var diff=cur-prev;if(Math.abs(diff)<0.01){el.textContent='';return}
+    var up=diff>0,arrow=up?'\u25B2':'\u25BC';
+    var cls=goodDir==='up'?(up?'up-good':'down-bad'):(up?'up-bad':'down-good');
+    el.className='card-trend '+cls;el.textContent=arrow;
+}
+function setText(id,v){var el=document.getElementById(id);if(el&&el.textContent!==String(v))el.textContent=v}
+
+/* ===== Filter Bar ===== */
+function buildFilterBar(){
+    var c=document.getElementById('samplerFilterList');c.innerHTML='';
+    // Σ Total entry
+    if(S.samplerVisibility[TOTAL_NAME]===undefined)S.samplerVisibility[TOTAL_NAME]=false;
+    c.appendChild(buildSamplerLabel(TOTAL_NAME,-1,true));
+    var sep=document.createElement('span');sep.className='sampler-total-separator';c.appendChild(sep);
+    S.knownSamplers.forEach((name,idx)=>c.appendChild(buildSamplerLabel(name,idx,false)));
+}
+function buildSamplerLabel(name,idx,isTotal){
+    var pill=document.createElement('div');pill.className='sampler-pill';
+    pill.setAttribute('data-sampler-name',name.toLowerCase());
+    if(S.samplerVisibility[name])pill.classList.add('checked');
+    if(isTotal)pill.style.fontWeight='700';
+    var box=document.createElement('span');box.className='sampler-checkbox-box';box.textContent='\u2713';
+    var dotWrap=document.createElement('span');dotWrap.style.cssText='position:relative;display:inline-block';
+    var dot=document.createElement('span');dot.className='sampler-color-dot';dot.style.background=getColor(name,idx);
+    dotWrap.appendChild(dot);
+    var nameSpan=document.createElement('span');nameSpan.className='sampler-name';nameSpan.textContent=name;nameSpan.title=name;
+    pill.appendChild(box);pill.appendChild(dotWrap);pill.appendChild(nameSpan);
+    if(!isTotal)dot.addEventListener('click',e=>{e.stopPropagation();openColorPicker(dotWrap,name,idx,dot)});
+    pill.addEventListener('click',()=>{S.samplerVisibility[name]=!S.samplerVisibility[name];pill.classList.toggle('checked',S.samplerVisibility[name]);debouncedRefresh()});
+    return pill;
+}
+var refreshTimer=null;
+function debouncedRefresh(){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{refreshChartsForce();renderSamplerTable()},150)}
+
+/* ===== Color Picker ===== */
+var PICKER_COLORS=(function(){var all=[];for(var k in PALETTES)all=all.concat(PALETTES[k]);all=all.concat(['#000000','#333333','#666666','#999999','#CCCCCC','#FF0000','#FF4444','#FF8800','#FFCC00','#00FF00','#00CC66','#0088FF','#0000FF','#8800FF','#FF00FF']);var seen={};return all.filter(function(c){var k=c.toUpperCase();if(seen[k])return false;seen[k]=true;return true})})();
+function openColorPicker(parent,name,idx,dotEl){
+    document.querySelectorAll('.color-picker-popup.open').forEach(p=>p.classList.remove('open'));
+    var existing=parent.querySelector('.color-picker-popup');if(existing){existing.classList.add('open');return}
+    var popup=document.createElement('div');popup.className='color-picker-popup open';
+    PICKER_COLORS.forEach(color=>{var sw=document.createElement('div');sw.className='color-swatch';sw.style.background=color;
+        if(getColor(name,idx).toUpperCase()===color.toUpperCase())sw.classList.add('selected');
+        sw.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();S.customColors[name]=color;dotEl.style.background=color;popup.classList.remove('open');saveLS();debouncedRefresh()});popup.appendChild(sw)});
+    var row=document.createElement('div');row.style.cssText='grid-column:1/-1;display:flex;align-items:center;gap:6px;margin-top:4px';
+    var ci=document.createElement('input');ci.type='color';ci.value=getColor(name,idx);ci.style.cssText='width:28px;height:28px;border:none;cursor:pointer;padding:0';
+    ci.addEventListener('input',()=>{S.customColors[name]=ci.value;dotEl.style.background=ci.value;saveLS();debouncedRefresh()});
+    row.appendChild(ci);var cl=document.createElement('span');cl.textContent='Custom...';cl.style.cssText='font-size:.75rem;color:#64748b';row.appendChild(cl);popup.appendChild(row);
+    parent.appendChild(popup);
+    setTimeout(()=>{document.addEventListener('click',function h(e){if(!popup.contains(e.target)&&e.target!==dotEl){popup.classList.remove('open');document.removeEventListener('click',h)}})},10);
+}
+
+/* ===== Sampler Table (with Σ Total) ===== */
+function renderSamplerTable(){
+    // Rebuilding a hidden table every update was the biggest browser cost at
+    // scale: 1,000 samplers are 18,000 nodes, rebuilt every 2 s on any tab.
+    // It is rebuilt when its tab is shown instead.
+    if(!document.getElementById('tab-samplers').classList.contains('active')){S.samplerTableDirty=true;return}
+    S.samplerTableDirty=false;
+    var tbody=document.getElementById('samplerTableBody'),stats=S.samplerStats,names=Object.keys(stats);
+    if(!names.length){tbody.innerHTML='<tr><td colspan="13" class="no-data">Waiting for data...</td></tr>';return}
+    var search=(document.getElementById('samplerSearch').value||'').toLowerCase();
+    names.sort((a,b)=>{var sa=stats[a],sb=stats[b],va,vb;switch(S.sortCol){
+        case'name':va=a.toLowerCase();vb=b.toLowerCase();return S.sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+        case'samples':va=sa.samples||0;vb=sb.samples||0;break;case'errors':va=sa.errors||0;vb=sb.errors||0;break;
+        case'errorRate':va=sa.errorRate||0;vb=sb.errorRate||0;break;case'avg':va=sa.avgResponseTime||0;vb=sb.avgResponseTime||0;break;
+        case'p90':va=sa.p90||0;vb=sb.p90||0;break;case'p95':va=sa.p95||0;vb=sb.p95||0;break;case'p99':va=sa.p99||0;vb=sb.p99||0;break;
+        case'min':va=sa.minResponseTime||0;vb=sb.minResponseTime||0;break;case'max':va=sa.maxResponseTime||0;vb=sb.maxResponseTime||0;break;
+        case'throughput':va=sa.throughput||0;vb=sb.throughput||0;break;
+        case'receivedKBs':va=sa.receivedKBs||0;vb=sb.receivedKBs||0;break;
+        case'sentKBs':va=sa.sentKBs||0;vb=sb.sentKBs||0;break;
+        default:va=0;vb=0}return S.sortAsc?va-vb:vb-va});
+    // Σ Total row from the server's authoritative cumulative stats — summing
+    // sampler rows would double-count transaction children, and averaging
+    // per-sampler percentiles is not a percentile
+    var c=S.cumulative||{};
+    var tS=c.totalSamples||0,tE=c.totalErrors||0,tER=c.overallErrorRate||0,tAvg=c.avgResponseTime||0,
+        aP90=c.p90||0,aP95=c.p95||0,aP99=c.p99||0,tMin=c.minResponseTime||0,tMax=c.maxResponseTime||0,
+        tTP=c.overallThroughput||0,tRKB=c.receivedKBs||0,tSKB=c.sentKBs||0;
+    var hc=S.hiddenCols,hs=function(k){return hc[k]?' style="display:none"':''};
+    var html='<tr class="total-sampler-row"><td><div class="sampler-name-cell"><span class="sampler-name-text" style="font-weight:700">\u03A3 Total</span></div></td>'+
+        '<td'+hs('samples')+'>'+fmtN(tS)+'</td><td'+hs('errors')+'>'+fmtN(tE)+'</td><td'+hs('errorRate')+' class="'+(tER>0?'cell-error':'')+'">'+fmtPct(tER)+'</td>'+
+        '<td'+hs('avg')+'>'+fmtCellMs(tAvg)+'</td><td'+hs('p90')+'>'+fmtCellMs(aP90)+'</td><td'+hs('p95')+'>'+fmtCellMs(aP95)+'</td><td'+hs('p99')+'>'+fmtCellMs(aP99)+'</td>'+
+        '<td'+hs('min')+'>'+fmtCellMs(tMin)+'</td><td'+hs('max')+'>'+fmtCellMs(tMax)+'</td><td'+hs('throughput')+'>'+fmtN(tTP)+'/s</td>'+
+        '<td'+hs('receivedKBs')+'>'+fmtKB(tRKB)+'</td><td'+hs('sentKBs')+'>'+fmtKB(tSKB)+'</td></tr>';
+    names.forEach(name=>{
+        if(search&&!name.toLowerCase().includes(search))return;
+        var s=stats[name],sla=S.slaStatus[name]||{},slaCls=getSlaClass(sla),slaLbl=getSlaLabel(sla),er=s.errorRate||0;
+        var isChild=!!S.hierarchy[name],indent=isChild?'padding-left:24px':'';
+        if(isChild&&!S.showChildren)return;
+        html+='<tr class="expandable" data-sampler="'+escH(name)+'" onclick="toggleSamplerDetail(\''+escH(name).replace(/'/g,"\\'")+'\')">'+'<td><div class="sampler-name-cell" style="'+indent+'"><span class="sla-badge-mini sla-badge-'+slaCls+'">'+slaLbl+'</span>'+
+            '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+getColor(name,S.knownSamplers.indexOf(name))+';margin-right:4px;flex-shrink:0"></span>'+
+            '<span class="sampler-name-text" title="'+escH(name)+(isChild?' (child of '+escH(S.hierarchy[name])+')':'')+'">'+escH(name)+'</span></div></td>'+
+            '<td'+hs('samples')+'>'+fmtN(s.samples||0)+'</td><td'+hs('errors')+'>'+fmtN(s.errors||0)+'</td><td'+hs('errorRate')+' class="'+(er>0?'cell-error':'')+'">'+fmtPct(er)+'</td>'+
+            '<td'+hs('avg')+'>'+fmtCellMs(s.avgResponseTime)+'</td><td'+hs('p90')+'>'+fmtCellMs(s.p90)+'</td><td'+hs('p95')+'>'+fmtCellMs(s.p95)+'</td><td'+hs('p99')+'>'+fmtCellMs(s.p99)+'</td>'+
+            '<td'+hs('min')+'>'+fmtCellMs(s.minResponseTime)+'</td><td'+hs('max')+'>'+fmtCellMs(s.maxResponseTime)+'</td><td'+hs('throughput')+'>'+fmtN(s.throughput)+'/s</td>'+
+            '<td'+hs('receivedKBs')+'>'+fmtKB(s.receivedKBs)+'</td><td'+hs('sentKBs')+'>'+fmtKB(s.sentKBs)+'</td></tr>';
+    });
+    tbody.innerHTML=html;
+    // Update sort indicators and column visibility
+    var sortedTh="doSort('"+S.sortCol+"')";
+    document.querySelectorAll('#samplerTable thead th').forEach(th=>{th.classList.remove('sorted-asc','sorted-desc');if(th.getAttribute('onclick')===sortedTh)th.classList.add(S.sortAsc?'sorted-asc':'sorted-desc')});
+    applyColVisibility();
+    // Put back the detail rows that were open: the same rows, charts and all. A sampler
+    // the search or the children toggle hides keeps its row, detached, until it is shown.
+    S.expandedSamplers.forEach(name=>{
+        var row=document.querySelector('tr[data-sampler="'+CSS.escape(name)+'"]');if(row)attachDetailRow(name,row);
+    });
+}
+function getSlaClass(s){if(!s||!Object.keys(s).length)return'pass';if(Object.values(s).includes('FAIL'))return'fail';if(Object.values(s).includes('WARN'))return'warn';return'pass'}
+function getSlaLabel(s){if(!s||!Object.keys(s).length)return'OK';if(Object.values(s).includes('FAIL'))return'FAIL';if(Object.values(s).includes('WARN'))return'WARN';return'PASS'}
+function doSort(col){if(S.sortCol===col)S.sortAsc=!S.sortAsc;else{S.sortCol=col;S.sortAsc=true}renderSamplerTable()}
+function toggleSamplerDetail(name){
+    if(S.expandedSamplers.has(name)){collapseSamplerDetail(name);return}
+    S.expandedSamplers.add(name);
+    var row=document.querySelector('tr[data-sampler="'+CSS.escape(name)+'"]');if(row)attachDetailRow(name,row);
+}
+/* An expanded sampler's detail row lives as long as it is expanded, charts and all. The
+   sampler table is rebuilt from scratch on every update (tbody.innerHTML); the detail rows
+   used to be rebuilt with it and three new charts drawn into them, while the old three stayed
+   registered in ECharts: 60 charts created and none disposed over 20 updates with one row
+   open, a flicker every update, and a zoom lost within one update although the docs promise
+   it is kept. Now the rebuild only detaches the row, and it is put back after its sampler's
+   new row; its charts take new data in place (refreshDetailCharts). */
+function attachDetailRow(name,row){
+    var dr=S.detailRows[name];
+    if(!dr){
+        dr=document.createElement('tr');dr.className='detail-row';dr.dataset.detailFor=name;
+        var td=document.createElement('td');
+        td.innerHTML='<div class="detail-charts"><div class="detail-chart-box"><h4>Response Time</h4><div class="detail-chart" id="detail-rt-'+detailKey(name)+'"></div></div><div class="detail-chart-box"><h4>Throughput</h4><div class="detail-chart" id="detail-tp-'+detailKey(name)+'"></div></div><div class="detail-chart-box"><h4>Error Rate</h4><div class="detail-chart" id="detail-er-'+detailKey(name)+'"></div></div></div>';
+        dr.appendChild(td);S.detailRows[name]=dr;
+    }
+    var cols=row.children.length,resized=dr.firstChild.colSpan!==cols;
+    dr.firstChild.colSpan=cols;row.after(dr);
+    var h=detailKey(name),charts=['detail-rt-','detail-tp-','detail-er-'].map(p=>S.detailCharts[p+h]).filter(Boolean);
+    if(!charts.length)setTimeout(()=>{if(S.detailRows[name]===dr&&document.body.contains(dr))initDetailCharts(name)},50);
+    else if(resized)charts.forEach(c=>c.resize());
+}
+// The mini-charts persist now, so they follow the window's size like the main charts do.
+var DETAIL_GROUP='ld-detail';echarts.connect(DETAIL_GROUP);
+window.addEventListener('resize',()=>{Object.values(S.detailCharts).forEach(c=>{if(document.body.contains(c.getDom()))c.resize()})});
+function collapseSamplerDetail(name){
+    S.expandedSamplers.delete(name);
+    var dr=document.querySelector('tr[data-detail-for="'+CSS.escape(name)+'"]');
+    var h=detailKey(name);['detail-rt-','detail-tp-','detail-er-'].forEach(p=>{var c=S.detailCharts[p+h];if(c){c.dispose();delete S.detailCharts[p+h]}});
+    if(dr)dr.remove();delete S.detailRows[name];
+}
+/* The key of a sampler's mini-charts (their element ids and S.detailCharts entries): a number
+   given the first time the page sees the name. It used to be built from the name itself
+   (anything but a-z, A-Z, 0-9 turned into _, cut at 40), so two samplers could share one:
+   names apart only in punctuation (GET /a, GET-/a), long paths alike for 40 characters, any
+   two non-Latin names of one length. Expanding both left the second without charts, and
+   after one update the first drew the second's numbers (measured 2026-10-12). */
+var detailKeys=new Map();
+function detailKey(n){if(!detailKeys.has(n))detailKeys.set(n,'s'+(detailKeys.size+1));return detailKeys.get(n)}
+function initDetailCharts(name){
+    var h=detailKey(name),times=S.timestamps,idx=S.knownSamplers.indexOf(name),col=getColor(name,idx);
+    var theme=getTheme(),baseOpts={animation:false,grid:{left:10,right:10,top:10,bottom:25,containLabel:true},tooltip:{trigger:'axis',confine:true,textStyle:{fontSize:10}},xAxis:{type:'time',axisLabel:{color:theme.textColor,fontSize:9,formatter:fmtMiniTime},axisLine:{lineStyle:{color:theme.lineColor}},splitLine:{show:false}},dataZoom:[{type:'inside'}]};
+    // The mini-charts zoom together and freeze together, as the Timeline's charts do
+    // (DETAIL_GROUP): they are there to compare one period across KPIs and samplers. While
+    // zoomed they all hold still (refreshDetailCharts skips them); zoomed back out to the
+    // whole run they all follow live data again. A chart that opens while the others are
+    // zoomed takes their zoom.
+    function initMini(el,key,opts){
+        var held=Object.values(S.detailCharts).find(x=>x._userZoomed);
+        if(held){var hz=held.getOption().dataZoom[0];opts={...opts,dataZoom:[{type:'inside',start:hz.start,end:hz.end}]}}
+        var c=echarts.init(el);c.group=DETAIL_GROUP;S.detailCharts[key]=c;c._userZoomed=!!held;
+        // echarts.connect hands the zoom to every chart in the group, so each freezes itself
+        c.on('dataZoom',()=>{var z=c.getOption().dataZoom[0];c._userZoomed=!(z.start<=0&&z.end>=100)});
+        c.setOption(opts);return c;
+    }
+    // RT
+    var w=S.samplerSamples[name]||[];
+    var el1=document.getElementById('detail-rt-'+h);if(el1){initMini(el1,'detail-rt-'+h,{...baseOpts,yAxis:{type:'value',min:0,minInterval:1,axisLabel:{color:theme.textColor,fontSize:9,formatter:fmtMsAxis},splitLine:{lineStyle:{color:theme.splitLineColor}}},series:[{type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:2},data:downsample(times,S.samplers[name]?.[S.selectedMetric]||[],S.selectedMetric,w,minuteOf(name,S.selectedMetric)),itemStyle:{color:col}}]})}
+    // TP
+    var el2=document.getElementById('detail-tp-'+h);if(el2){initMini(el2,'detail-tp-'+h,{...baseOpts,yAxis:{type:'value',min:0,axisLabel:{color:theme.textColor,fontSize:9},splitLine:{lineStyle:{color:theme.splitLineColor}}},series:[{type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:2},data:downsample(times,S.samplers[name]?.throughput||[],'throughput',null,minuteOf(name,'throughput')),itemStyle:{color:col}}]})}
+    // ER
+    var el3=document.getElementById('detail-er-'+h);if(el3){initMini(el3,'detail-er-'+h,{...baseOpts,yAxis:{type:'value',min:0,axisLabel:{color:theme.textColor,fontSize:9},splitLine:{lineStyle:{color:theme.splitLineColor}}},series:[{type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:2},areaStyle:{opacity:.15},data:downsample(times,S.samplers[name]?.errorRate||[],'errorRate',w,minuteOf(name,'errorRate')),itemStyle:{color:col}}]})}
+}
+function reinitDetailCharts(){S.expandedSamplers.forEach(name=>{var h=detailKey(name);['detail-rt-','detail-tp-','detail-er-'].forEach(p=>{var c=S.detailCharts[p+h];if(c){c.dispose();delete S.detailCharts[p+h]}});initDetailCharts(name)})}
+function refreshDetailCharts(){
+    if(!S.testRunning&&S.timestamps.length>0)return; // Don't update after test ends
+    S.expandedSamplers.forEach(name=>{var h=detailKey(name),times=S.timestamps,w=S.samplerSamples[name]||[];
+        var c1=S.detailCharts['detail-rt-'+h];if(c1&&!c1._userZoomed)c1.setOption({series:[{data:downsample(times,S.samplers[name]?.[S.selectedMetric]||[],S.selectedMetric,w,minuteOf(name,S.selectedMetric))}]});
+        var c2=S.detailCharts['detail-tp-'+h];if(c2&&!c2._userZoomed)c2.setOption({series:[{data:downsample(times,S.samplers[name]?.throughput||[],'throughput',null,minuteOf(name,'throughput'))}]});
+        var c3=S.detailCharts['detail-er-'+h];if(c3&&!c3._userZoomed)c3.setOption({series:[{data:downsample(times,S.samplers[name]?.errorRate||[],'errorRate',w,minuteOf(name,'errorRate'))}]});
+    });
+}
+
+/* ===== Error Table ===== */
+function renderErrorTable(){
+    var tbody=document.getElementById('errorTableBody'),errs=S.recentErrors;
+    var cE=document.getElementById('errorCount'),tC=document.getElementById('errorTabCount');
+    // Show the true total error count (unbounded), not the capped detail list
+    // length — the recentErrors deque is trimmed to maxErrorSamples.
+    var total=(S.cumulative&&S.cumulative.totalErrors!=null)?S.cumulative.totalErrors:errs.length;
+    if(!errs.length&&!total){tbody.innerHTML='<tr><td colspan="5" class="no-data">No errors</td></tr>';cE.textContent='';tC.textContent='';return}
+    var shown=Math.min(errs.length,50); // the table body renders at most 50 rows
+    var badge='('+fmtN(total)+(total>shown?', showing '+shown:'')+')';
+    cE.textContent=badge;tC.textContent='('+fmtN(total)+')';
+    var html='';errs.slice(0,50).forEach(e=>{
+        html+='<tr><td>'+fmtTime(e.timestamp)+'</td><td><span class="sampler-name-text" style="max-width:250px;display:inline-block;overflow:hidden;text-overflow:ellipsis" title="'+escH(e.sampler||'')+'">'+escH(e.sampler||'')+'</span></td>'+
+            '<td><span class="error-code-badge">'+escH(e.responseCode||'')+'</span></td>'+
+            '<td>'+escH((e.responseMessage||'').substring(0,60))+'</td>'+
+            '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+escH((e.requestUrl||'').substring(0,60))+'</td></tr>';
+    });tbody.innerHTML=html;
+}
+
+/* ===== SLA Badge + Notifications ===== */
+var prevSlaWorst='PASS';
+function updateSlaBadge(){
+    var badge=document.getElementById('slaBadge');if(!S.slaConfig||(!S.slaConfig.p95&&!S.slaConfig.errorRate)){badge.style.display='none';return}
+    badge.style.display='';var worst='PASS';
+    for(var name of Object.keys(S.slaStatus)){var s=S.slaStatus[name];for(var v of Object.values(s)){if(v==='FAIL'){worst='FAIL';break}if(v==='WARN')worst='WARN'}if(worst==='FAIL')break}
+    badge.textContent='SLA '+worst;badge.className='status-badge badge-'+worst.toLowerCase();
+    // Browser notification on SLA FAIL transition
+    if(worst==='FAIL'&&prevSlaWorst!=='FAIL'&&S.testRunning){notifySLA()}
+    prevSlaWorst=worst;
+}
+function notifySLA(){
+    if(!('Notification' in window))return;
+    if(Notification.permission==='granted'){
+        var fails=[];for(var n in S.slaStatus)for(var k in S.slaStatus[n])if(S.slaStatus[n][k]==='FAIL')fails.push(n+' ('+k+')');
+        new Notification('SLA FAIL - '+S.testName,{body:fails.slice(0,3).join(', '),tag:'sla-fail',icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">&#9888;</text></svg>'});
+    }
+}
+
+/* ===== Controls ===== */
+function toggleDarkMode(){var dk=document.body.classList.toggle('dark-mode');localStorage.setItem('ld_darkMode',dk);document.getElementById('darkModeIcon').textContent=dk?'\u2600':'\u263E';initCharts();refreshChartsForce();refreshErrorCharts();reinitDetailCharts()}
+function toggleColorblind(){var cb=document.body.classList.toggle('cb-mode');localStorage.setItem('ld_cbMode',cb);initCharts();refreshChartsForce();refreshErrorCharts();reinitDetailCharts()}
+function toggleTimeDisplay(){S.timeDisplay=S.timeDisplay==='clock'?'elapsed':'clock';localStorage.setItem('ld_timeDisplay',S.timeDisplay);document.getElementById('timeDisplayBtn').innerHTML=S.timeDisplay==='clock'?'&#128339; Clock':'&#9201; Elapsed';refreshChartsForce()}
+function togglePause(){
+    S.paused=!S.paused;var btn=document.getElementById('btnPause');
+    if(S.paused){
+        btn.textContent='Resume Updates';btn.classList.add('paused-active');
+    }else{
+        // Replay buffered buckets
+        S.pauseBuffer.forEach(b=>handleBucket(b));S.pauseBuffer=[];
+        btn.textContent='Pause Updates';btn.classList.remove('paused-active');
+    }
+}
+/* A non-2xx (e.g. 403 for a stale stop token) must surface as an error and
+   leave the button usable — its JSON body parses fine, so check r.ok. */
+function stopFetch(path,btnId,onOk){fetch(path,{method:'POST',headers:{'X-Stop-Token':LD_TOKEN}}).then(r=>{if(!r.ok)return r.json().catch(()=>({})).then(b=>{throw new Error(b.error||('HTTP '+r.status))});return r.json()}).then(()=>{document.getElementById(btnId).disabled=true;if(onOk)onOk()}).catch(e=>alert('Stop failed: '+e.message))}
+/* A graceful stop takes a while (running samplers finish), and every bucket
+   that arrives during the wind-down still carries testRunning:true — without
+   the stopRequested latch, updateTestStatusUI would re-enable the button 2s
+   after the click and erase the only "your stop registered" feedback. */
+function stopTest(){if(!confirm('Stop the test gracefully? Currently running samplers will finish.'))return;stopFetch('/api/stop','btnStop',()=>{S.stopRequested=true;updateTestStatusUI()})}
+function stopTestNow(){if(!confirm('Shutdown JMeter immediately? This will kill the process.'))return;stopFetch('/api/stop-now','btnStopNow')}
+function selectAllSamplers(on){S.knownSamplers.forEach(n=>S.samplerVisibility[n]=on);S.samplerVisibility[TOTAL_NAME]=on;buildFilterBar();debouncedRefresh()}
+
+/* ===== UI ===== */
+function updateConnectionUI(){
+    var ind=document.getElementById('liveIndicator'),lbl=document.getElementById('liveLabel');
+    if(!S.liveMode&&S.connected&&S.testRunning){updateExploreUI();return}
+    if(S.connected){ind.classList.remove('disconnected','ended','exploring');if(S.testRunning){lbl.textContent='LIVE'}else{ind.classList.add('ended');lbl.textContent='ENDED'}}
+    else{ind.classList.add('disconnected');ind.classList.remove('ended','exploring');lbl.textContent='DISCONNECTED'}
+}
+function updateTestStatusUI(){
+    var st=document.getElementById('testStatus'),btn=document.getElementById('btnStop');
+    if(S.testRunning&&S.stopRequested){st.textContent='Stopping';st.style.color='var(--color-warning)';btn.disabled=true}
+    else if(S.testRunning){st.textContent='Running';st.style.color='var(--color-success)';btn.disabled=false}
+    else{st.textContent='Ended';st.style.color='var(--color-warning)';btn.disabled=true}
+    updateConnectionUI();
+}
+/* Running: wall clock since start. Ended: start to the server's end time, so a tab opened
+   after the run (no live update will ever come) and a tab that watched it end agree. */
+function renderElapsed(){if(!S.testStartTime)return;var el=document.getElementById('elapsed');if(S.testRunning)el.textContent=fmtDur(Date.now()-S.testStartTime);else if(S.testEndTime>S.testStartTime)el.textContent=fmtDur(S.testEndTime-S.testStartTime)}
+function startElapsedTimer(){if(S.elapsedInterval)clearInterval(S.elapsedInterval);renderElapsed();S.elapsedInterval=setInterval(renderElapsed,1000)}
+function stopElapsedTimer(){if(S.elapsedInterval){clearInterval(S.elapsedInterval);S.elapsedInterval=null}}
+
+/* ===== Toggle Groups ===== */
+document.getElementById('paletteToggle').addEventListener('click',e=>{var b=e.target.closest('.filter-toggle-btn');if(!b)return;e.currentTarget.querySelectorAll('.filter-toggle-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.currentPalette=b.dataset.palette;saveLS();buildFilterBar();debouncedRefresh()});
+document.getElementById('lineToggle').addEventListener('click',e=>{var b=e.target.closest('.filter-toggle-btn');if(!b)return;e.currentTarget.querySelectorAll('.filter-toggle-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.lineThickness=parseInt(b.dataset.thickness);saveLS();debouncedRefresh()});
+document.getElementById('metricToggle').addEventListener('click',e=>{var b=e.target.closest('.filter-toggle-btn');if(!b)return;e.currentTarget.querySelectorAll('.filter-toggle-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.selectedMetric=b.dataset.metric;debouncedRefresh()});
+document.getElementById('windowToggle').addEventListener('click',e=>{var b=e.target.closest('.filter-toggle-btn');if(!b)return;e.currentTarget.querySelectorAll('.filter-toggle-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.windowSeconds=parseInt(b.dataset.window);debouncedRefresh()});
+document.getElementById('granularityToggle').addEventListener('click',e=>{var b=e.target.closest('.filter-toggle-btn');if(!b)return;e.currentTarget.querySelectorAll('.filter-toggle-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');S.granularity=parseInt(b.dataset.gran);debouncedRefresh()});
+
+function syncToggles(){
+    document.querySelectorAll('#paletteToggle .filter-toggle-btn').forEach(b=>b.classList.toggle('active',b.dataset.palette===S.currentPalette));
+    document.querySelectorAll('#lineToggle .filter-toggle-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.thickness)===S.lineThickness));
+    document.querySelectorAll('#metricToggle .filter-toggle-btn').forEach(b=>b.classList.toggle('active',b.dataset.metric===S.selectedMetric));
+}
+
+/* ===== localStorage ===== */
+function saveLS(){try{localStorage.setItem('ld_palette',S.currentPalette);localStorage.setItem('ld_line',S.lineThickness);localStorage.setItem('ld_colors',JSON.stringify(S.customColors))}catch(e){}}
+function loadLS(){try{var p=localStorage.getItem('ld_palette');if(p&&PALETTES[p])S.currentPalette=p;var l=localStorage.getItem('ld_line');if(l)S.lineThickness=parseInt(l)||2;var c=localStorage.getItem('ld_colors');if(c)S.customColors=JSON.parse(c);var td=localStorage.getItem('ld_timeDisplay');if(td)S.timeDisplay=td;var pr=localStorage.getItem('ld_presets');if(pr)S.presets=JSON.parse(pr);var hc=localStorage.getItem('ld_hiddenCols');if(hc)S.hiddenCols=JSON.parse(hc)}catch(e){}}
+
+/* ===== Error Breakdown Charts ===== */
+function refreshErrorCharts(){
+    var es=S.errorSummary;if(!es)return;
+    // Pie: errors by code
+    if(S.charts.errorPieChart){
+        var byCode=es.byCode||{},pieData=[];for(var k in byCode)pieData.push({name:k,value:byCode[k]});
+        S.charts.errorPieChart.setOption({animation:false,tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},legend:{bottom:5,type:'scroll',textStyle:{color:getTheme().textColor,fontSize:10}},series:[{type:'pie',radius:['30%','60%'],center:['50%','45%'],data:pieData,label:{show:pieData.length<=8,fontSize:11},emphasis:{itemStyle:{shadowBlur:10}}}]},true);
+    }
+    // Bar: errors by sampler
+    if(S.charts.errorBarChart){
+        var bySampler=es.bySampler||{},names=[],vals=[];
+        var sorted=Object.entries(bySampler).sort((a,b)=>b[1]-a[1]).slice(0,15);
+        sorted.forEach(e=>{names.push(e[0]);vals.push(e[1])});
+        var barColors=names.map(n=>{var idx=S.knownSamplers.indexOf(n);return getColor(n,idx>=0?idx:0)});
+        S.charts.errorBarChart.setOption({animation:false,tooltip:{trigger:'axis'},grid:{left:20,right:20,top:10,bottom:80},xAxis:{type:'category',data:names,axisLabel:{color:getTheme().textColor,fontSize:9,rotate:35,formatter:n=>n.length>25?n.substring(0,22)+'...':n}},yAxis:{type:'value',axisLabel:{color:getTheme().textColor,fontSize:10}},series:[{type:'bar',data:vals.map((v,i)=>({value:v,itemStyle:{color:barColors[i]}}))}]},true);
+    }
+}
+
+/* ===== Chart Drag-and-Drop Reorder ===== */
+var dragSrc=null;
+function initDragDrop(){
+    var container=document.getElementById('timelineContent');if(!container)return;
+    container.querySelectorAll('.chart-section[draggable]').forEach(sec=>{
+        sec.addEventListener('dragstart',e=>{dragSrc=sec;sec.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',sec.dataset.chartId)});
+        sec.addEventListener('dragend',()=>{dragSrc=null;sec.classList.remove('dragging');container.querySelectorAll('.chart-section').forEach(s=>s.classList.remove('drag-over'))});
+        sec.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';if(sec!==dragSrc)sec.classList.add('drag-over')});
+        sec.addEventListener('dragleave',()=>{sec.classList.remove('drag-over')});
+        sec.addEventListener('drop',e=>{e.preventDefault();sec.classList.remove('drag-over');if(!dragSrc||dragSrc===sec)return;
+            var children=[...container.querySelectorAll('.chart-section[draggable]')];
+            var fromIdx=children.indexOf(dragSrc),toIdx=children.indexOf(sec);
+            if(fromIdx<toIdx)sec.after(dragSrc);else sec.before(dragSrc);
+            // Resize charts after DOM move
+            setTimeout(()=>{container.querySelectorAll('.chart-section[draggable]').forEach(s=>{var id=s.dataset.chartId;if(S.charts[id])S.charts[id].resize()});saveChartOrder()},50)});
+    });
+    restoreChartOrder();
+}
+function saveChartOrder(){var container=document.getElementById('timelineContent');if(!container)return;var order=[...container.querySelectorAll('.chart-section[draggable]')].map(s=>s.dataset.chartId);localStorage.setItem('ld_chartOrder',JSON.stringify(order))}
+function restoreChartOrder(){try{var order=JSON.parse(localStorage.getItem('ld_chartOrder'));if(!order)return;var container=document.getElementById('timelineContent');if(!container)return;order.forEach(id=>{var el=container.querySelector('[data-chart-id="'+id+'"]');if(el)container.appendChild(el)})}catch(e){}}
+
+/* ===== Column Visibility ===== */
+var COL_DEFS=[{key:'samples',label:'Samples'},{key:'errors',label:'Errors'},{key:'errorRate',label:'Error %'},{key:'avg',label:'Mean'},{key:'p90',label:'P90'},{key:'p95',label:'P95'},{key:'p99',label:'P99'},{key:'min',label:'Min'},{key:'max',label:'Max'},{key:'throughput',label:'Throughput'},{key:'receivedKBs',label:'Recv KB/s'},{key:'sentKBs',label:'Sent KB/s'}];
+function toggleColMenu(){var m=document.getElementById('colMenu');if(m.style.display==='none'){m.style.display='block';m.innerHTML='';COL_DEFS.forEach(c=>{var lbl=document.createElement('label');lbl.style.cssText='display:flex;align-items:center;gap:6px;font-size:.75rem;padding:2px 0;cursor:pointer';var cb=document.createElement('input');cb.type='checkbox';cb.checked=!S.hiddenCols[c.key];cb.addEventListener('change',()=>{if(cb.checked)delete S.hiddenCols[c.key];else S.hiddenCols[c.key]=true;localStorage.setItem('ld_hiddenCols',JSON.stringify(S.hiddenCols));applyColVisibility();renderSamplerTable()});lbl.appendChild(cb);lbl.appendChild(document.createTextNode(c.label));m.appendChild(lbl)});setTimeout(()=>{document.addEventListener('click',function h(e){if(!m.contains(e.target)&&!e.target.textContent.includes('Columns')){m.style.display='none';document.removeEventListener('click',h)}})},10)}else m.style.display='none'}
+function applyColVisibility(){var ths=document.querySelectorAll('#samplerTable thead th');ths.forEach((th,i)=>{if(i===0)return;var key=COL_DEFS[i-1]?.key;if(key)th.style.display=S.hiddenCols[key]?'none':''})}
+
+/* ===== Filter Presets ===== */
+function savePreset(){var name=prompt('Preset name:');if(!name)return;var vis={};for(var k in S.samplerVisibility)vis[k]=S.samplerVisibility[k];S.presets[name]=vis;localStorage.setItem('ld_presets',JSON.stringify(S.presets));refreshPresetSelect()}
+function loadPreset(){var sel=document.getElementById('presetSelect');var name=sel.value;if(!name||!S.presets[name])return;var vis=S.presets[name];for(var k in vis)S.samplerVisibility[k]=vis[k];buildFilterBar();debouncedRefresh()}
+function deletePreset(){var sel=document.getElementById('presetSelect');var name=sel.value;if(!name)return;delete S.presets[name];localStorage.setItem('ld_presets',JSON.stringify(S.presets));refreshPresetSelect()}
+function refreshPresetSelect(){var sel=document.getElementById('presetSelect');var cur=sel.value;sel.innerHTML='<option value="">--</option>';for(var k in S.presets){var o=document.createElement('option');o.value=k;o.textContent=k;sel.appendChild(o)}sel.value=S.presets[cur]?cur:''} // a deleted preset matches no option: "--", not a blank box
+
+/* ===== Bootstrap ===== */
+document.addEventListener('DOMContentLoaded',()=>{
+    if(localStorage.getItem('ld_darkMode')==='true'){document.body.classList.add('dark-mode');document.getElementById('darkModeIcon').textContent='\u2600'}
+    if(localStorage.getItem('ld_cbMode')==='true'){document.body.classList.add('cb-mode')}
+    loadLS();syncToggles();
+    if(S.timeDisplay==='elapsed')document.getElementById('timeDisplayBtn').innerHTML='&#9201; Elapsed';
+    refreshPresetSelect();
+    resetSeriesState();
+    // Permission for the SLA FAIL notification is asked on the first click, not on load:
+    // Firefox and Safari refuse a prompt no click started, so asking on load (or when an
+    // SLA failed) meant the notification could never appear there.
+    if('Notification' in window&&Notification.permission==='default'){
+        var askNotify=function(){document.removeEventListener('click',askNotify,true);if(Notification.permission==='default')Notification.requestPermission()};
+        document.addEventListener('click',askNotify,true);
+    }
+    initDragDrop();
+    connectSSE();
+    loadEchartsSource();
+});
+
+/* ===== Copy Summary ===== */
+/* The button is passed in: window.event is gone by the time the write resolves. Reading
+   it threw into .catch, whose plain-text fallback overwrote the table just written. */
+function copySummary(b){
+    var vals=[['Total Samples',document.getElementById('valSamples').textContent],['Error Rate',document.getElementById('valErrorRate').textContent],['Duration',document.getElementById('valDuration').textContent],['Max Threads',document.getElementById('valThreads').textContent],['Avg Response Time',document.getElementById('valAvgRT').textContent],['P95',document.getElementById('valP95').textContent],['Throughput',document.getElementById('valThroughput').textContent],['Total Errors',document.getElementById('valTotalErrors').textContent]];
+    var html='<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:13px"><caption style="font-weight:bold;font-size:15px;margin-bottom:8px">'+escH(S.testName)+' \u2014 Live Dashboard Summary</caption><tbody>';
+    vals.forEach(r=>{html+='<tr><td style="font-weight:600;background:#f0f4ff">'+r[0]+'</td><td>'+escH(r[1])+'</td></tr>'});
+    html+='</tbody></table>';
+    var text=vals.map(r=>r[0]+': '+r[1]).join('\n');
+    navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([text],{type:'text/plain'})})]).then(()=>{b.textContent='Copied!';setTimeout(()=>{b.textContent='Copy Summary'},2000)}).catch(()=>{navigator.clipboard.writeText(text)});
+}
+
+/* ===== CSV Export ===== */
+function exportTableCSV(type){
+    var rows=[],ts=new Date().toISOString().replace(/[:.]/g,'-').substring(0,19);
+    if(type==='sampler'){
+        rows.push(['Sampler','Samples','Errors','Error %','Mean (ms)','P90 (ms)','P95 (ms)','P99 (ms)','Min (ms)','Max (ms)','Throughput','Recv KB/s','Sent KB/s']);
+        Object.keys(S.samplerStats).sort().forEach(n=>{var s=S.samplerStats[n];rows.push([n,s.samples||0,s.errors||0,(s.errorRate||0).toFixed(2),Math.trunc(s.avgResponseTime||0),Math.round(s.p90||0),Math.round(s.p95||0),Math.round(s.p99||0),Math.round(s.minResponseTime||0),Math.round(s.maxResponseTime||0),(s.throughput||0).toFixed(1),(s.receivedKBs||0).toFixed(2),(s.sentKBs||0).toFixed(2)])});
+    }else{
+        rows.push(['Time','Sampler','Code','Message','URL']);
+        S.recentErrors.forEach(e=>{rows.push([new Date(e.timestamp).toISOString(),e.sampler||'',e.responseCode||'',e.responseMessage||'',e.requestUrl||''])});
+    }
+    var csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+    var blob=new Blob([csv],{type:'text/csv'});var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download='live-'+type+'s_'+ts+'.csv';a.click();URL.revokeObjectURL(url);
+}
+
+/* ===== Export Snapshot ===== */
+/* The chart library, inlined into every snapshot so the file works offline. Fetched when
+   the page loads (DOMContentLoaded) and kept for the session. It used to be fetched at the
+   first export, and by then the server may be gone: Shutdown, a killed JMeter, Ctrl+C. A
+   tab that had not exported before that produced a snapshot that needed the CDN for its
+   charts, with nothing on the page to say so (measured 2026-10-11 on a real run, in
+   Chromium, Chrome, Firefox and WebKit). The browser cache cannot stand in: the server
+   sends this file without caching headers, so this second download is a full one, ~1 MB
+   per page open. A failed attempt is not kept, so the next call tries again. */
+var echartsSource=null,echartsLoading=null;
+function loadEchartsSource(){
+    if(echartsSource)return Promise.resolve(echartsSource);
+    if(!echartsLoading)echartsLoading=fetch('/echarts.min.js')
+        .then(r=>r.ok?r.text():null).catch(()=>null)
+        .then(t=>{echartsLoading=null;echartsSource=t;return t});
+    return echartsLoading;
+}
+async function exportSnapshot(){
+    // A second call when the first returns nothing: the first may only have joined the
+    // load-time attempt, which had already failed; the second is this export's own.
+    var src=await loadEchartsSource()||await loadEchartsSource();
+    /* Inline it. `</script` can only occur inside a string, regex or comment in JS source,
+       and `<\/script` is equivalent in all three, so the rewrite cannot change behaviour --
+       it only stops the HTML parser ending our <script> early.
+       If the server is gone we cannot inline, so fall back to the CDN rather than shipping
+       a chartless file, and say so in the page. */
+    var echartsTag = src
+        ? '<script>'+src.replace(/<\/script/gi,'<\\/script')+'<\/script>'
+        : '<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"><\/script>'
+          +'<!-- ECharts could not be inlined (dashboard server unreachable); this file needs the network for charts. -->';
+
+    // Gather current state — include all data for full offline report
+    var snap={
+        testName:S.testName,testStartTime:S.testStartTime,
+        elapsed:S.lastElapsed||Date.now()-S.testStartTime,
+        palette:S.currentPalette,lineThickness:S.lineThickness,metric:S.selectedMetric,
+        knownSamplers:S.knownSamplers,samplerVisibility:{...S.samplerVisibility},
+        timestamps:[...S.timestamps],overall:{},samplers:{},
+        samplerStats:JSON.parse(JSON.stringify(S.samplerStats)),
+        cumulative:S.cumulative?JSON.parse(JSON.stringify(S.cumulative)):{},
+        recentErrors:S.recentErrors.slice(0,100),
+        slaStatus:S.slaStatus,slaConfig:S.slaConfig,
+        errorSummary:S.errorSummary,hierarchy:S.hierarchy,
+        timeDisplay:S.timeDisplay,customColors:S.customColors||{}
+    };
+    OVERALL_METRICS.forEach(m=>{snap.overall[m]=S.overall[m]?[...S.overall[m]]:[]});
+    S.knownSamplers.forEach(n=>{snap.samplers[n]={};SAMPLER_METRICS.forEach(m=>{snap.samplers[n][m]=S.samplers[n]?.[m]?[...S.samplers[n][m]]:[]})});
+
+    // Read current page CSS and mode state
+    var css=document.querySelector('style').textContent;
+    var isDark=document.body.classList.contains('dark-mode');
+    var isCb=document.body.classList.contains('cb-mode');
+    var bodyClass=(isDark?' dark-mode':'')+(isCb?' cb-mode':'');
+
+    // Snapshot the SLA/Apdex badges exactly as the live page is showing them
+    // (the live state is per-sampler PASS/WARN/FAIL + cumulative apdex, not
+    // slaStatus.overall/.apdex keys, which never existed).
+    var slaBadge='',apdexBadge='';
+    var slaEl=document.getElementById('slaBadge');
+    if(slaEl&&slaEl.style.display!=='none')slaBadge='<span class="'+slaEl.className+'">'+escH(slaEl.textContent)+'</span>';
+    var apdexEl=document.getElementById('apdexBadge');
+    if(apdexEl&&apdexEl.style.display!=='none')apdexBadge='<span class="'+apdexEl.className+'">'+escH(apdexEl.textContent)+'</span>';
+
+    // Build sampler filter pills (same structure as live dashboard)
+    var samplerChecks='';
+    snap.knownSamplers.forEach((n,i)=>{
+        var isChecked=snap.samplerVisibility[n];
+        var pal=PALETTES[snap.palette]||PALETTES['default'];var col=snap.customColors[n]||pal[i%pal.length];
+        var eName=escH(n).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        samplerChecks+='<div class="sampler-pill'+(isChecked?' checked':'')+'" data-sampler-name="'+escH(n.toLowerCase())+'" onclick="togglePill(this,\''+eName+'\')">'
+            +'<span class="sampler-checkbox-box">\u2713</span>'
+            +'<span style="position:relative;display:inline-block"><span class="sampler-color-dot" style="background:'+col+'" onclick="event.stopPropagation();openCP(this.parentNode,\''+eName+'\','+i+',this)"></span></span>'
+            +'<span class="sampler-name" title="'+escH(n)+'">'+escH(n.length>25?n.substring(0,22)+'...':n)+'</span>'
+            +'</div>';
+    });
+
+    var html=`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>${escH(snap.testName)} — Dashboard Snapshot</title>
+${echartsTag}
+<style>${css}</style>
+</head><body class="${bodyClass.trim()}">
+<header class="report-header"><div class="header-content"><div>
+<h1>${escH(snap.testName)}</h1>
+<p class="report-subtitle">Snapshot: ${new Date().toLocaleString()} | Duration: ${fmtDur(snap.elapsed)} | Samples: ${fmtN(snap.cumulative&&snap.cumulative.totalSamples!=null?snap.cumulative.totalSamples:0)}</p>
+</div><div class="header-right">
+${slaBadge}${apdexBadge}
+<button class="dark-mode-toggle" onclick="toggleCb()" title="Toggle colorblind mode"><span id="cbIcon">&#128065;</span></button>
+<button class="dark-mode-toggle" onclick="toggleDark()" title="Toggle dark mode"><span id="dkIcon">${isDark?'\u2600':'\u263E'}</span></button>
+<span class="status-badge badge-info" style="background:var(--badge-info-bg);color:var(--badge-info-text)">SNAPSHOT</span>
+</div></div></header>
+<nav class="tab-nav">
+<button class="tab-btn active" data-tab="summary" onclick="swTab('summary')">Summary</button>
+<button class="tab-btn" data-tab="timeline" onclick="swTab('timeline')">Timeline</button>
+<button class="tab-btn" data-tab="samplers" onclick="swTab('samplers')">Samplers</button>
+<button class="tab-btn" data-tab="errors" onclick="swTab('errors')">Errors (${fmtN(snap.cumulative&&snap.cumulative.totalErrors!=null?snap.cumulative.totalErrors:snap.recentErrors.length)})</button>
+</nav>
+<div class="filter-bar" id="filterBar">
+<div class="filter-row">
+<label class="filter-label">Palette:</label>
+<div class="filter-btn-group" id="paletteToggle">
+<button class="filter-toggle-btn${snap.palette==='default'?' active':''}" onclick="setPalette('default')">Default</button>
+<button class="filter-toggle-btn${snap.palette==='okabe-ito'?' active':''}" onclick="setPalette('okabe-ito')">Okabe-Ito</button>
+<button class="filter-toggle-btn${snap.palette==='high-contrast'?' active':''}" onclick="setPalette('high-contrast')">High Contrast</button>
+</div>
+<label class="filter-label">Line:</label>
+<div class="filter-btn-group" id="lineToggle">
+<button class="filter-toggle-btn${snap.lineThickness===1?' active':''}" onclick="setLine(1)">Thin</button>
+<button class="filter-toggle-btn${snap.lineThickness===2?' active':''}" onclick="setLine(2)">Medium</button>
+<button class="filter-toggle-btn${snap.lineThickness===3?' active':''}" onclick="setLine(3)">Thick</button>
+</div>
+<label class="filter-label">Metric:</label>
+<div class="filter-btn-group" id="metricToggle">
+<button class="filter-toggle-btn${snap.metric==='avgResponseTime'?' active':''}" onclick="setMetric('avgResponseTime')">Mean</button>
+<button class="filter-toggle-btn${snap.metric==='p50'?' active':''}" onclick="setMetric('p50')">P50</button>
+<button class="filter-toggle-btn${snap.metric==='p90'?' active':''}" onclick="setMetric('p90')">P90</button>
+<button class="filter-toggle-btn${snap.metric==='p95'?' active':''}" onclick="setMetric('p95')">P95</button>
+<button class="filter-toggle-btn${snap.metric==='p99'?' active':''}" onclick="setMetric('p99')">P99</button>
+<button class="filter-toggle-btn${snap.metric==='maxResponseTime'?' active':''}" onclick="setMetric('maxResponseTime')">Max</button>
+</div>
+<button class="dark-mode-toggle" onclick="toggleTime()" title="Toggle clock/elapsed" style="padding:2px 8px;font-size:.8rem" id="timeBtn">&#128339; ${snap.timeDisplay==='elapsed'?'Elapsed':'Clock'}</button>
+</div>
+<div class="filter-row">
+<label class="filter-label">Samplers:</label>
+<button class="filter-link-btn" onclick="selAll(true)">All</button>
+<button class="filter-link-btn" onclick="selAll(false)">None</button>
+<div class="filter-sampler-list" id="samplerFilters">${samplerChecks}</div>
+</div>
+</div>
+<div class="tab-pane active" id="tab-summary"><div class="content">
+<div id="summaryCards"></div>
+<div class="chart-section"><div class="chart-section-header"><h2>Response Time Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFs('summaryRTChart',this)">Fullscreen</button></div></div><div class="chart-container" id="summaryRTChart"></div></div>
+</div></div>
+<div class="tab-pane" id="tab-timeline"><div class="content">
+<div class="chart-section"><div class="chart-section-header"><h2>Response Time Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFs('responseTimeChart',this)">Fullscreen</button></div></div><div class="chart-container" id="responseTimeChart"></div></div>
+<div class="chart-section"><div class="chart-section-header"><h2>Throughput Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFs('throughputChart',this)">Fullscreen</button></div></div><div class="chart-container" id="throughputChart"></div></div>
+<div class="chart-section"><div class="chart-section-header"><h2>Error Rate Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFs('errorRateChart',this)">Fullscreen</button></div></div><div class="chart-container" id="errorRateChart"></div></div>
+<div class="chart-section"><div class="chart-section-header"><h2>Bytes Throughput Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFs('bytesChart',this)">Fullscreen</button></div></div><div class="chart-container" id="bytesChart"></div></div>
+<div class="chart-section"><div class="chart-section-header"><h2>Connect Time &amp; Latency Over Time</h2><div class="chart-header-actions"><button class="chart-header-btn" onclick="toggleFs('connectLatencyChart',this)">Fullscreen</button></div></div><div class="chart-container" id="connectLatencyChart"></div></div>
+</div></div>
+<div class="tab-pane" id="tab-samplers"><div class="content"><div class="table-section"><h2>Sampler Statistics</h2>
+<div class="table-toolbar"><input type="text" class="table-search" id="samplerSearch" placeholder="Filter samplers..." oninput="renderTable()"/>
+<button class="footer-btn" onclick="exportCSV('sampler')" style="font-size:.75rem;padding:4px 12px">Export CSV</button>
+<button class="footer-btn" onclick="copySummary()" style="font-size:.75rem;padding:4px 12px">Copy Summary</button></div>
+<div style="overflow-x:auto"><table class="stats-table" id="samplerTable"><thead><tr>
+<th onclick="doSort('name')">Sampler</th><th onclick="doSort('samples')">Samples</th><th onclick="doSort('errors')">Errors</th><th onclick="doSort('errorRate')">Error %</th><th onclick="doSort('avg')">Mean (ms)</th><th onclick="doSort('p90')">P90 (ms)</th><th onclick="doSort('p95')">P95 (ms)</th><th onclick="doSort('p99')">P99 (ms)</th><th onclick="doSort('min')">Min (ms)</th><th onclick="doSort('max')">Max (ms)</th><th onclick="doSort('throughput')">Throughput</th><th onclick="doSort('receivedKBs')">Recv KB/s</th><th onclick="doSort('sentKBs')">Sent KB/s</th>
+</tr></thead><tbody id="samplerTableBody"></tbody></table></div></div></div></div>
+<div class="tab-pane" id="tab-errors"><div class="content">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+<div class="chart-section"><div class="chart-section-header"><h2>Errors by Response Code</h2></div><div class="chart-container" id="errorPieChart" style="height:280px"></div></div>
+<div class="chart-section"><div class="chart-section-header"><h2>Errors by Sampler</h2></div><div class="chart-container" id="errorBarChart" style="height:280px"></div></div>
+</div>
+<div class="table-section"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><h2>Recent Errors</h2>
+<button class="footer-btn" onclick="exportCSV('error')" style="font-size:.75rem;padding:4px 12px">Export CSV</button></div>
+<div style="overflow-x:auto"><table class="stats-table"><thead><tr><th>Time</th><th>Sampler</th><th>Code</th><th>Message</th><th>URL</th></tr></thead><tbody id="errorTableBody"></tbody></table></div></div></div></div>
+<script>
+var D=${jsonForScript(snap)};
+var PALETTES=${JSON.stringify(PALETTES)};
+var COLORS=PALETTES[D.palette]||PALETTES['default'];
+var TOTAL_COLOR='#333333';
+var sortCol='name',sortAsc=true;
+
+/* ===== Utilities ===== */
+function gc(n,i){if(D.customColors[n])return D.customColors[n];return COLORS[i%COLORS.length]}
+function gT(){var dk=document.body.classList.contains('dark-mode');return{text:dk?'#94a3b8':'#64748b',line:dk?'#374151':'#e2e8f0',split:dk?'#1e293b':'#f1f5f9'}}
+var NF_INT=new Intl.NumberFormat('en-US'),NF_1DP=new Intl.NumberFormat('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
+function fN(n){if(n==null||isNaN(n))return'0';return Number.isInteger(n)?NF_INT.format(n):NF_1DP.format(n)}
+var NF_2DP=new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function fCellMs(n){return NF_INT.format(Math.trunc(n||0))}
+function fKB(n){return NF_2DP.format(n||0)}
+function fMs(n){if(n==null||isNaN(n))return'0 ms';if(n>=60000)return(n/60000).toFixed(1)+' min';if(n>=1e3)return(n/1e3).toFixed(1)+' s';return Math.round(n)+' ms'}
+function fMsAxis(v){if(v>=1e3)return(v/1e3).toFixed(1)+'s';return v+'ms'}
+function fPct(n){if(n==null||isNaN(n))return'0%';return n.toFixed(2)+'%'}
+function fT(ts){if(D.timeDisplay==='elapsed'&&D.testStartTime){var ms=ts-D.testStartTime;if(ms<0)ms=0;return'+'+fDur(ms)}var d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')}
+function fDur(ms){var s=Math.floor(ms/1e3),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')}
+function eH(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;')}
+function tL(n){return n.length>30?n.substring(0,27)+'...':n}
+function visNames(){return D.knownSamplers.filter(function(n){return D.samplerVisibility[n]})}
+
+/* ===== Tabs ===== */
+function swTab(t){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t)});
+document.querySelectorAll('.tab-pane').forEach(function(p){p.classList.toggle('active',p.id==='tab-'+t)});
+setTimeout(function(){initTab(t)},50)}
+var inited={};
+function initTab(t){if(inited[t])return;inited[t]=true;
+var ids={summary:['summaryRTChart'],timeline:['responseTimeChart','throughputChart','errorRateChart','bytesChart','connectLatencyChart'],errors:['errorPieChart','errorBarChart']};
+var list=ids[t];if(!list)return;
+list.forEach(function(id){var el=document.getElementById(id);if(!el)return;var c=echarts.init(el);renderChart(c,id)});
+window.addEventListener('resize',function(){document.querySelectorAll('.chart-container').forEach(function(el){var ci=echarts.getInstanceByDom(el);if(ci)ci.resize()})})}
+
+/* ===== Chart Rendering ===== */
+function commonOpts(yName){
+var th=gT();
+return{animation:false,grid:{left:65,right:30,top:45,bottom:80},
+toolbox:{show:true,right:8,top:0,feature:{saveAsImage:{type:'png',title:'Save PNG',pixelRatio:2}},iconStyle:{borderColor:th.text}},
+tooltip:{trigger:'axis',backgroundColor:'rgba(0,0,0,.85)',borderWidth:0,textStyle:{color:'#fff',fontSize:11},confine:true},
+legend:{bottom:5,type:'scroll',textStyle:{color:th.text,fontSize:10},formatter:tL,tooltip:{show:true}},
+xAxis:{type:'time',axisLine:{lineStyle:{color:th.line}},axisLabel:{color:th.text,fontSize:11,formatter:function(v){return fT(v)}},splitLine:{show:false}},
+yAxis:{type:'value',name:yName,min:0,nameTextStyle:{color:th.text,fontSize:11},axisLine:{show:false},axisLabel:{color:th.text,fontSize:11,formatter:yName.indexOf('ms')>=0?fMsAxis:undefined},splitLine:{lineStyle:{color:th.split}}},
+dataZoom:[{type:'inside',xAxisIndex:0},{type:'slider',xAxisIndex:0,bottom:38,height:18,left:65,right:60,labelFormatter:function(v){return fT(v)}}]}}
+
+function renderChart(chart,id){
+var ts=D.timestamps,metric=D.metric,names=visNames();
+var mLabels={avgResponseTime:'Mean',p50:'P50',p90:'P90',p95:'P95',p99:'P99',maxResponseTime:'Max'};
+var th=gT();
+
+if(id==='summaryRTChart'||id==='responseTimeChart'){
+var series=[];names.forEach(function(n){var data=D.samplers[n]?.[metric]||[];series.push({name:n,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:D.lineThickness},data:ts.map(function(t,j){return[t,data[j]]}),itemStyle:{color:gc(n,D.knownSamplers.indexOf(n))}})});
+// Total series — exact per-bucket overall value captured from the server
+if(D.samplerVisibility['\\u03A3 Total']!==false&&names.length>1){var totalRaw=D.overall[metric]||[];
+series.push({name:'\\u03A3 Total',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:D.lineThickness+1,type:'dashed'},data:ts.map(function(t,j){return[t,totalRaw[j]]}),itemStyle:{color:TOTAL_COLOR},z:10})}
+var opts=commonOpts((mLabels[metric]||'P95')+' (ms)');opts.series=series;
+// SLA markline
+if(D.slaConfig.p95&&(metric==='p95'||metric==='p99')&&series.length){series[0].markLine={silent:true,data:[{yAxis:D.slaConfig.p95,label:{formatter:'SLA',position:'insideEndTop'},lineStyle:{color:'#ef4444',type:'dashed',width:1}}]}}
+chart.setOption(opts,true)}
+
+else if(id==='throughputChart'){
+var series=[];names.forEach(function(n){var data=D.samplers[n]?.throughput||[];series.push({name:n,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:D.lineThickness},data:ts.map(function(t,j){return[t,data[j]]}),itemStyle:{color:gc(n,D.knownSamplers.indexOf(n))},yAxisIndex:0})});
+// Total throughput — exact per-bucket overall value captured from the server
+if(names.length>1){var tdRaw=D.overall.throughput||[];
+series.push({name:'\\u03A3 Total',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:D.lineThickness+1,type:'dashed'},data:ts.map(function(t,j){return[t,tdRaw[j]]}),itemStyle:{color:TOTAL_COLOR},yAxisIndex:0,z:10})}
+series.push({name:'Active Threads',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:1,type:'dashed',color:'#91cc75'},data:ts.map(function(t,i){return[t,(D.overall.activeThreads||[])[i]]}),itemStyle:{color:'#91cc75'},yAxisIndex:1});
+var opts=commonOpts('req/s');opts.grid.right=80;opts.dataZoom[1].right=80;
+opts.yAxis=[{type:'value',name:'req/s',min:0,nameTextStyle:{color:th.text,fontSize:11},axisLine:{show:false},axisLabel:{color:th.text,fontSize:11},splitLine:{lineStyle:{color:th.split}}},{type:'value',name:'threads',min:0,nameTextStyle:{color:th.text,fontSize:11},axisLine:{show:false},axisLabel:{color:th.text,fontSize:11},splitLine:{show:false}}];
+opts.series=series;chart.setOption(opts,true)}
+
+else if(id==='errorRateChart'){
+var series=[];names.forEach(function(n){var data=D.samplers[n]?.errorRate||[];series.push({name:n,type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:D.lineThickness},areaStyle:{opacity:.1},data:ts.map(function(t,j){return[t,data[j]]}),itemStyle:{color:gc(n,D.knownSamplers.indexOf(n))}})});
+if(D.slaConfig.errorRate&&series.length){series[0].markLine={silent:true,data:[{yAxis:D.slaConfig.errorRate,label:{formatter:'SLA',position:'insideEndTop'},lineStyle:{color:'#ef4444',type:'dashed',width:1}}]}}
+var opts=commonOpts('Error Rate (%)');opts.series=series;chart.setOption(opts,true)}
+
+else if(id==='bytesChart'){
+var series=[];names.forEach(function(n){var data=D.samplers[n]?.receivedBytesPerSec||[];var kbData=data.map(function(v){return v!=null?v/1024:null});
+series.push({name:n+' (recv)',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:D.lineThickness},data:ts.map(function(t,j){return[t,kbData[j]]}),itemStyle:{color:gc(n,D.knownSamplers.indexOf(n))}})});
+var opts=commonOpts('KB/s');opts.series=series;chart.setOption(opts,true)}
+
+else if(id==='connectLatencyChart'){
+var series=[];names.forEach(function(n){var ct=D.samplers[n]?.avgConnectTime||[],lt=D.samplers[n]?.avgLatency||[];var col=gc(n,D.knownSamplers.indexOf(n));
+series.push({name:n+' (latency)',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:D.lineThickness},data:ts.map(function(t,j){return[t,lt[j]]}),itemStyle:{color:col}});
+series.push({name:n+' (connect)',type:'line',symbol:'none',smooth:true,connectNulls:true,lineStyle:{width:Math.max(1,D.lineThickness-1),type:'dashed'},data:ts.map(function(t,j){return[t,ct[j]]}),itemStyle:{color:col}})});
+var opts=commonOpts('Connect / Latency (ms)');opts.series=series;chart.setOption(opts,true)}
+
+else if(id==='errorPieChart'){
+var es=D.errorSummary;if(!es||!es.byCode)return;
+var pieData=[];for(var k in es.byCode)pieData.push({name:k,value:es.byCode[k]});
+chart.setOption({animation:false,tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},legend:{bottom:5,type:'scroll',textStyle:{color:th.text,fontSize:10}},series:[{type:'pie',radius:['30%','60%'],center:['50%','45%'],data:pieData,label:{show:pieData.length<=8,fontSize:11},emphasis:{itemStyle:{shadowBlur:10}}}]},true)}
+
+else if(id==='errorBarChart'){
+var es=D.errorSummary;if(!es||!es.bySampler)return;
+var bNames=[],bVals=[];var sorted=Object.entries(es.bySampler).sort(function(a,b){return b[1]-a[1]}).slice(0,15);
+sorted.forEach(function(e){bNames.push(e[0]);bVals.push(e[1])});
+var barCols=bNames.map(function(n){var idx=D.knownSamplers.indexOf(n);return gc(n,idx>=0?idx:0)});
+chart.setOption({animation:false,tooltip:{trigger:'axis'},grid:{left:20,right:20,top:10,bottom:80},xAxis:{type:'category',data:bNames,axisLabel:{color:th.text,fontSize:9,rotate:35,formatter:function(n){return n.length>25?n.substring(0,22)+'...':n}}},yAxis:{type:'value',axisLabel:{color:th.text,fontSize:10}},series:[{type:'bar',data:bVals.map(function(v,i){return{value:v,itemStyle:{color:barCols[i]}}})}]},true)}
+}
+
+/* ===== Toggle Controls ===== */
+function toggleDark(){var dk=document.body.classList.toggle('dark-mode');document.getElementById('dkIcon').textContent=dk?String.fromCharCode(9728):String.fromCharCode(9790);reRenderAll()}
+function toggleCb(){document.body.classList.toggle('cb-mode');reRenderAll()}
+function toggleTime(){D.timeDisplay=D.timeDisplay==='clock'?'elapsed':'clock';document.getElementById('timeBtn').innerHTML=D.timeDisplay==='clock'?'&#128339; Clock':'&#9201; Elapsed';reRenderAll()}
+function toggleFs(id,btn){var el=document.getElementById(id);if(!el)return;var sec=el.closest('.chart-section');if(!sec)return;sec.classList.toggle('chart-fullscreen');btn.textContent=sec.classList.contains('chart-fullscreen')?'Exit Fullscreen':'Fullscreen';setTimeout(function(){var ci=echarts.getInstanceByDom(el);if(ci)ci.resize()},50)}
+
+function setActive(parent,val){parent.querySelectorAll('.filter-toggle-btn').forEach(function(b){b.classList.remove('active')});parent.querySelector('[onclick*=\"'+val+'\"]').classList.add('active')}
+function setPalette(p){D.palette=p;COLORS=PALETTES[p]||PALETTES['default'];setActive(document.getElementById('paletteToggle'),"'"+p+"'");reRenderAll()}
+function setLine(w){D.lineThickness=w;setActive(document.getElementById('lineToggle'),w);reRenderAll()}
+function setMetric(m){D.metric=m;setActive(document.getElementById('metricToggle'),"'"+m+"'");reRenderAll()}
+function togglePill(pill,name){D.samplerVisibility[name]=!D.samplerVisibility[name];pill.classList.toggle('checked',D.samplerVisibility[name]);reRenderAll()}
+function selAll(on){D.knownSamplers.forEach(function(n){D.samplerVisibility[n]=on});document.querySelectorAll('#samplerFilters .sampler-pill').forEach(function(el){el.classList.toggle('checked',on)});reRenderAll()}
+
+function openCP(parent,name,idx,dotEl){
+document.querySelectorAll('.color-picker-popup.open').forEach(function(p){p.classList.remove('open')});
+var existing=parent.querySelector('.color-picker-popup');if(existing){existing.classList.add('open');return}
+var popup=document.createElement('div');popup.className='color-picker-popup open';
+var allColors=[];for(var k in PALETTES)allColors=allColors.concat(PALETTES[k]);
+allColors=allColors.concat(['#000000','#333333','#666666','#999999','#CCCCCC','#FF0000','#FF4444','#FF8800','#FFCC00','#00FF00','#00CC66','#0088FF','#0000FF','#8800FF','#FF00FF']);
+var seen={};allColors=allColors.filter(function(c){var k=c.toUpperCase();if(seen[k])return false;seen[k]=true;return true});
+allColors.forEach(function(color){var sw=document.createElement('div');sw.className='color-swatch';sw.style.background=color;
+if(gc(name,idx).toUpperCase()===color.toUpperCase())sw.classList.add('selected');
+sw.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();D.customColors[name]=color;dotEl.style.background=color;popup.classList.remove('open');reRenderAll()});popup.appendChild(sw)});
+var row=document.createElement('div');row.style.cssText='grid-column:1/-1;display:flex;align-items:center;gap:6px;margin-top:4px';
+var ci=document.createElement('input');ci.type='color';ci.value=gc(name,idx);ci.style.cssText='width:28px;height:28px;border:none;cursor:pointer;padding:0';
+ci.addEventListener('input',function(){D.customColors[name]=ci.value;dotEl.style.background=ci.value;reRenderAll()});
+row.appendChild(ci);var cl=document.createElement('span');cl.textContent='Custom...';cl.style.cssText='font-size:.75rem;color:#64748b';row.appendChild(cl);popup.appendChild(row);
+parent.appendChild(popup);
+setTimeout(function(){document.addEventListener('click',function h(e){if(!popup.contains(e.target)&&e.target!==dotEl){popup.classList.remove('open');document.removeEventListener('click',h)}})},10)}
+
+function reRenderAll(){
+inited={};
+document.querySelectorAll('.chart-container').forEach(function(el){var ci=echarts.getInstanceByDom(el);if(ci){ci.dispose()}});
+var activeTab=document.querySelector('.tab-btn.active');var t=activeTab?activeTab.dataset.tab:'summary';
+initTab(t);renderTable()}
+
+/* ===== Summary Cards ===== */
+function renderCards(){
+// Use the server's authoritative cumulative stats — the same numbers the
+// live cards showed. Summing per-sampler rows double-counts transaction
+// children, s.maxThreads doesn't exist per sampler, and averaging
+// percentiles is not a percentile.
+var c=D.cumulative||{};
+var tS=c.totalSamples||0,tE=c.totalErrors||0,tER=c.overallErrorRate||0,tAvg=c.avgResponseTime||0,
+    p95=c.p95||0,tTP=c.overallThroughput||0,maxTh=c.maxThreads||0;
+document.getElementById('summaryCards').innerHTML=
+'<div class="summary-cards">'+
+'<div class="summary-card"><div class="card-value">'+fN(tS)+'</div><div class="card-label">Total Samples</div></div>'+
+'<div class="summary-card'+(tER>0?' card-error':'')+'"><div class="card-value">'+fPct(tER)+'</div><div class="card-label">Error Rate</div></div>'+
+'<div class="summary-card"><div class="card-value">'+fDur(D.elapsed)+'</div><div class="card-label">Duration</div></div>'+
+'<div class="summary-card"><div class="card-value">'+(maxTh||0)+'</div><div class="card-label">Max Threads</div></div>'+
+'<div class="summary-card"><div class="card-value">'+fMs(Math.trunc(tAvg))+'</div><div class="card-label">Avg Response Time</div></div>'+
+'<div class="summary-card"><div class="card-value">'+fMs(p95)+'</div><div class="card-label">P95</div></div>'+
+'<div class="summary-card"><div class="card-value">'+fN(tTP)+'/s</div><div class="card-label">Throughput</div></div>'+
+'<div class="summary-card"><div class="card-value">'+fN(tE)+'</div><div class="card-label">Total Errors</div></div></div>'}
+
+/* ===== Sampler Table ===== */
+function renderTable(){
+var stats=D.samplerStats,filter=(document.getElementById('samplerSearch')||{}).value||'';
+filter=filter.toLowerCase();
+var names=Object.keys(stats).filter(function(n){return!filter||n.toLowerCase().indexOf(filter)>=0});
+var getVal=function(n,col){var s=stats[n];switch(col){case'name':return n;case'samples':return s.samples||0;case'errors':return s.errors||0;case'errorRate':return s.errorRate||0;case'avg':return s.avgResponseTime||0;case'p90':return s.p90||0;case'p95':return s.p95||0;case'p99':return s.p99||0;case'min':return s.minResponseTime||0;case'max':return s.maxResponseTime||0;case'throughput':return s.throughput||0;case'receivedKBs':return s.receivedKBs||0;case'sentKBs':return s.sentKBs||0;default:return n}};
+names.sort(function(a,b){var va=getVal(a,sortCol),vb=getVal(b,sortCol);if(typeof va==='string')return sortAsc?va.localeCompare(vb):vb.localeCompare(va);return sortAsc?va-vb:vb-va});
+var c=D.cumulative||{};
+var tS=c.totalSamples||0,tE=c.totalErrors||0,tER=c.overallErrorRate||0,tAvg=c.avgResponseTime||0;
+var h='<tr class="total-sampler-row"><td><div class="sampler-name-cell"><span class="sampler-name-text" style="font-weight:700">\\u03A3 Total</span></div></td>'+
+'<td>'+fN(tS)+'</td><td>'+fN(tE)+'</td><td class="'+(tER>0?'cell-error':'')+'">'+fPct(tER)+'</td>'+
+'<td>'+fCellMs(tAvg)+'</td><td>'+fCellMs(c.p90)+'</td><td>'+fCellMs(c.p95)+'</td><td>'+fCellMs(c.p99)+'</td>'+
+'<td>'+fCellMs(c.minResponseTime)+'</td><td>'+fCellMs(c.maxResponseTime)+'</td><td>'+fN(c.overallThroughput||0)+'/s</td><td>'+fKB(c.receivedKBs)+'</td><td>'+fKB(c.sentKBs)+'</td></tr>';
+names.forEach(function(n){var s=stats[n],er=s.errorRate||0;var isChild=!!D.hierarchy[n],indent=isChild?'padding-left:24px':'';
+h+='<tr><td><div class="sampler-name-cell" style="'+indent+'"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+gc(n,D.knownSamplers.indexOf(n))+';margin-right:4px;flex-shrink:0"></span><span class="sampler-name-text" title="'+eH(n)+(isChild?' (child of '+eH(D.hierarchy[n])+')':'')+'">'+eH(n)+'</span></div></td>'+
+'<td>'+fN(s.samples||0)+'</td><td>'+fN(s.errors||0)+'</td><td class="'+(er>0?'cell-error':'')+'">'+fPct(er)+'</td>'+
+'<td>'+fCellMs(s.avgResponseTime)+'</td><td>'+fCellMs(s.p90)+'</td><td>'+fCellMs(s.p95)+'</td><td>'+fCellMs(s.p99)+'</td>'+
+'<td>'+fCellMs(s.minResponseTime)+'</td><td>'+fCellMs(s.maxResponseTime)+'</td><td>'+fN(s.throughput)+'/s</td><td>'+fKB(s.receivedKBs)+'</td><td>'+fKB(s.sentKBs)+'</td></tr>'});
+document.getElementById('samplerTableBody').innerHTML=h}
+
+function doSort(col){if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=col==='name'}renderTable()}
+
+/* ===== Error Table ===== */
+function renderErrors(){
+var errs=D.recentErrors;if(!errs.length){document.getElementById('errorTableBody').innerHTML='<tr><td colspan="5" class="no-data">No errors</td></tr>';return}
+var h='';errs.forEach(function(e){h+='<tr><td>'+fT(e.timestamp)+'</td><td style="max-width:250px;overflow:hidden;text-overflow:ellipsis" title="'+eH(e.sampler||'')+'">'+eH(e.sampler||'')+'</td>'+
+'<td><span class="error-code-badge">'+eH(e.responseCode||'')+'</span></td><td>'+eH((e.responseMessage||'').substring(0,60))+'</td>'+
+'<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+eH((e.requestUrl||'').substring(0,60))+'</td></tr>'});
+document.getElementById('errorTableBody').innerHTML=h}
+
+/* ===== CSV Export ===== */
+function exportCSV(type){
+var rows=[],ts=new Date().toISOString().replace(/[:.]/g,'-').substring(0,19);
+if(type==='sampler'){
+rows.push(['Sampler','Samples','Errors','Error %','Mean (ms)','P90 (ms)','P95 (ms)','P99 (ms)','Min (ms)','Max (ms)','Throughput','Recv KB/s','Sent KB/s']);
+Object.keys(D.samplerStats).sort().forEach(function(n){var s=D.samplerStats[n];rows.push([n,s.samples||0,s.errors||0,(s.errorRate||0).toFixed(2),Math.trunc(s.avgResponseTime||0),Math.round(s.p90||0),Math.round(s.p95||0),Math.round(s.p99||0),Math.round(s.minResponseTime||0),Math.round(s.maxResponseTime||0),(s.throughput||0).toFixed(1),(s.receivedKBs||0).toFixed(2),(s.sentKBs||0).toFixed(2)])})}
+else{rows.push(['Time','Sampler','Code','Message','URL']);
+D.recentErrors.forEach(function(e){rows.push([new Date(e.timestamp).toISOString(),e.sampler||'',e.responseCode||'',e.responseMessage||'',e.requestUrl||''])})}
+var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"'}).join(',')}).join('\\n');
+var blob=new Blob([csv],{type:'text/csv'});var url=URL.createObjectURL(blob);
+var a=document.createElement('a');a.href=url;a.download='snapshot-'+type+'s_'+ts+'.csv';a.click();URL.revokeObjectURL(url)}
+
+/* ===== Copy Summary ===== */
+function copySummary(){
+var cards=document.querySelectorAll('.summary-card');var vals=[];
+cards.forEach(function(c){var lbl=c.querySelector('.card-label');var val=c.querySelector('.card-value');if(lbl&&val)vals.push([lbl.textContent,val.textContent])});
+var html='<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:13px"><caption style="font-weight:bold;font-size:15px;margin-bottom:8px">'+eH(D.testName)+' \\u2014 Dashboard Summary</caption><tbody>';
+vals.forEach(function(r){html+='<tr><td style="font-weight:600;background:#f0f4ff">'+r[0]+'</td><td>'+eH(r[1])+'</td></tr>'});
+html+='</tbody></table>';
+var text=vals.map(function(r){return r[0]+': '+r[1]}).join('\\n');
+try{navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([text],{type:'text/plain'})})]).then(function(){}).catch(function(){navigator.clipboard.writeText(text)})}catch(e){navigator.clipboard.writeText(text)}}
+
+/* ===== Init ===== */
+renderCards();renderTable();renderErrors();initTab('summary');
+<\/script></body></html>`;
+
+    // Download
+    var blob=new Blob([html],{type:'text/html'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;
+    var ts=new Date().toISOString().replace(/[:.]/g,'-').substring(0,19);
+    a.download='live-dashboard-snapshot_'+ts+'.html';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
