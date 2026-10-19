@@ -470,7 +470,7 @@ Two CSV export buttons:
 CSV files use UTF-8 encoding with quoted fields and escaped double quotes.
 
 ### PNG Chart Export
-The Summary response time chart and the five Timeline charts include a save-as-image button in the ECharts toolbox (camera icon). Downloads a PNG at 2x pixel ratio for retina clarity. The error charts and the per-sampler mini-charts have none.
+The Summary response time chart and the five Timeline charts include a save-as-image button in the ECharts toolbox (download icon; hover shows "Save PNG"). Downloads a PNG at 2x pixel ratio for retina clarity. The error charts and the per-sampler mini-charts have none.
 
 ### Copy Summary as HTML
 The "Copy Summary" button in the footer copies an HTML table to the clipboard containing all 8 metric card values, formatted for pasting into:
