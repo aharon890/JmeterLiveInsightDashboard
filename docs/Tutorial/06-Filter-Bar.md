@@ -123,7 +123,7 @@ Quick toggle links to check or uncheck all samplers at once, including the Sigma
 
 Samplers matching configured patterns (default: `JSR223*`, `Debug*`, `BeanShell*`) are unchecked by default on discovery. They remain in the filter bar and can be manually enabled. In a pattern, `*` matches any characters and `?` exactly one; everything else, brackets and parentheses included, matches literally.
 
-Configure via: `-Jlive.dashboard.hide.patterns="JSR223*,Debug*,BeanShell*,Setup*"`
+Set them in the listener panel's **Auto-hide patterns** field. `-Jlive.dashboard.hide.patterns="JSR223*,Debug*,BeanShell*,Setup*"` applies only when that field is empty.
 
 ### Sigma Total Virtual Sampler
 

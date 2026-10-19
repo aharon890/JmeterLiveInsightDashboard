@@ -98,13 +98,16 @@ jmeter -n -t test.jmx \
   -Jlive.dashboard.idle.timeout=1800
 ```
 
+A plan saved from the JMeter GUI always holds Port, Update Interval, Chart History Limit and Auto-hide patterns, so set those four in the listener panel; Port and Auto-hide patterns can instead be cleared there to hand them to `-J`.
+
 This configures:
-- Remote access on port 8080
-- 1-second update interval
-- 2 hours of 1-second chart detail (the whole run is kept at 1-minute resolution either way)
+- Remote access from other machines
+- Port 8080 *(only if the plan doesn't already set it; see Property Precedence below)*
+- 1-second update interval *(only if the plan doesn't already set it; see Property Precedence below)*
+- 2 hours of 1-second chart detail (the whole run is kept at 1-minute resolution either way) *(only if the plan doesn't already set it; see Property Precedence below)*
 - SLA: P95 under 2 seconds, error rate under 5%
 - Apdex threshold at 300ms
-- Hide utility samplers + setup samplers
+- Hide utility samplers + setup samplers *(only if the plan doesn't already set it; see Property Precedence below)*
 - Retain 200 error samples
 - 30-minute idle timeout
 
