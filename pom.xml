@@ -29,9 +29,24 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jmeter.version>5.6.3</jmeter.version>
-        <jackson.version>2.16.1</jackson.version>
+        <jackson.version>2.18.12</jackson.version>
         <slf4j.version>1.7.36</slf4j.version>
     </properties>
+
+    <!-- Keeps jackson-core and jackson-annotations on jackson.version too. Without it
+         they arrive through JMeter's own dependencies at 2.16.1, and that mix of Jackson
+         versions on the compile and test classpath is not supported. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- JMeter Core (provided at runtime by JMeter) -->
@@ -48,7 +63,13 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Jackson JSON (provided by JMeter at runtime) -->
+        <!-- Jackson JSON (provided by JMeter at runtime). Built against a patched
+             release to clear the jackson-databind advisories, which JMeter 5.6.3's
+             2.16.1 still carries; in JMeter that 2.16.1 is what loads. The plugin only
+             writes JSON (ObjectMapper.writeValueAsString, JsonGenerator), and every
+             advisory is on the reading side. A bump can still make javac bind a call to
+             a method 2.16.1 lacks, so after one, build once more with
+             -Djackson.version=2.16.1 and check the classes come out byte-identical. -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
