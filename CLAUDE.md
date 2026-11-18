@@ -295,4 +295,6 @@ This repo is developed on Windows; both are already handled in
   - `docs/TODO.md` holds known issues, measured current limitations, and design
     constraints that were deliberately chosen.
   - Don't commit plans, reviews or session notes, and don't make an archive
-    folder for them. Finished work lives in git history.
+    folder for them. Finished work lives in git history. The one exception is
+    `specs/`, where Spec Kit keeps each feature's specification, plan and tasks
+    (`.specify/memory/constitution.md` holds the project's rules for it).
