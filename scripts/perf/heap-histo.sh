@@ -28,12 +28,18 @@ perf="$here/../../test-results/perf"
 interval="${1:-1800}"
 JDK_IMAGE="${JDK_IMAGE:-eclipse-temurin:21-jdk}"
 started=$(date +%s)
-declare -A last
+# Last sample time per container, one file each: an associative array (declare -A)
+# is bash 4, and macOS's /bin/bash is 3.2. Container names are filename-safe.
+last_dir="$(mktemp -d)"
+trap 'rm -rf "$last_dir"' EXIT
+# GNU stat (Linux, Git Bash) first, BSD stat (macOS) second.
+mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"; }
 
 while :; do
     for c in $(docker ps --format '{{.Names}}' | grep '^ld-perf-'); do
         now=$(date +%s)
-        [[ $(( now - ${last[$c]:-0} )) -lt $interval ]] && continue
+        last=$(cat "$last_dir/$c" 2>/dev/null || echo 0)
+        [[ $(( now - last )) -lt $interval ]] && continue
         name="${c#ld-perf-}"; name="${name%-*}"
         run="$(ls -d "$perf/$name"-*/ 2>/dev/null | tail -1)"
         [[ -n "$run" ]] || continue
@@ -43,14 +49,14 @@ while :; do
         f="$run/histo/$now.txt"
         MSYS_NO_PATHCONV=1 docker run --rm --pid="container:$c" "$JDK_IMAGE" \
             jcmd "$pid" GC.class_histogram > "$f" 2>&1
-        last[$c]=$now
+        echo "$now" > "$last_dir/$c"
         total="$(awk '/^Total/ {print $3}' "$f")"
         [[ -n "$total" ]] || continue
         plugin="$(awk '/jmeterinsight/ {s += $3} END {print s + 0}' "$f")"
         frozen="$(awk '/engine\.FrozenBucket$/ {print $2}' "$f")"
         echo "$now $total $plugin ${frozen:-0}" >> "$run/livesets.txt"
     done
-    if [[ -f "$perf/queue.log" && $(stat -c %Y "$perf/queue.log") -gt $started ]] \
+    if [[ -f "$perf/queue.log" && $(mtime "$perf/queue.log") -gt $started ]] \
         && tail -1 "$perf/queue.log" | grep -q 'QUEUE DONE'; then
         exit 0
     fi
