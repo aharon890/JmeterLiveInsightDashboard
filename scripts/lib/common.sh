@@ -38,8 +38,10 @@ DASHBOARD_PORT="${DASHBOARD_PORT:-7566}"
 # BSD (macOS) and GNU (Linux) disagree on stat and md5. Resolve once, up front.
 if stat -f%z /dev/null >/dev/null 2>&1; then
     stat_size() { [[ -f "$1" ]] || { echo 0; return 0; }; stat -f%z "$1"; }
+    stat_mtime() { stat -f%m "$1"; }
 else
     stat_size() { [[ -f "$1" ]] || { echo 0; return 0; }; stat -c%s "$1"; }
+    stat_mtime() { stat -c%Y "$1"; }
 fi
 
 if command -v md5sum >/dev/null 2>&1; then
@@ -261,11 +263,20 @@ deploy_plugin() {
 # never match. "Older than the source it was built from" is the condition that
 # actually means an install is running out-of-date code.
 #
-# -printf is GNU find. On BSD find (macOS) this yields nothing, so callers must
-# treat empty as "cannot tell" and stay silent rather than warn wrongly.
+# Plain find plus the stat_mtime shim, so it answers on BSD find (macOS) too:
+# it used find -printf, which is GNU only, and on a Mac yielded nothing, so every
+# stale-deploy warning stayed silent there. Callers still treat empty (no source
+# found) as "cannot tell" and stay silent rather than warn wrongly.
 newest_src_file() {
-    find "$PROJECT_DIR/src/main" -type f -printf '%T@ %p\n' 2>/dev/null \
-        | sort -rn | head -1 | cut -d' ' -f2-
+    local f t newest="" newest_t=0
+    while IFS= read -r f; do
+        t="$(stat_mtime "$f" 2>/dev/null)" || continue
+        if [[ "$t" -gt "$newest_t" ]]; then
+            newest_t="$t"
+            newest="$f"
+        fi
+    done < <(find "$PROJECT_DIR/src/main" -type f 2>/dev/null)
+    printf '%s\n' "$newest"
 }
 
 # Is the PRIMARY install's jar older than src/main?
