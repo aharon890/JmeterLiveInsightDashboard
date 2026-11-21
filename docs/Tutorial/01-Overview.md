@@ -31,7 +31,7 @@ The dashboard is a **single HTML page** served by an embedded HTTP server inside
 Download the plugin JAR from the [GitHub Releases page](https://github.com/aharon890/JmeterLiveInsightDashboard/releases) and copy it to JMeter's extension directory. Remove any older `jmeter-live-dashboard-*.jar` there first:
 
 ```bash
-cp jmeter-live-dashboard-1.6.2.jar $JMETER_HOME/lib/ext/
+cp jmeter-live-dashboard-1.6.3.jar $JMETER_HOME/lib/ext/
 ```
 
 No other dependencies. The JAR is self-contained.
@@ -40,7 +40,7 @@ No other dependencies. The JAR is self-contained.
 
 ```bash
 mvn clean package -DskipTests
-cp target/jmeter-live-dashboard-1.6.2.jar $JMETER_HOME/lib/ext/
+cp target/jmeter-live-dashboard-1.6.3.jar $JMETER_HOME/lib/ext/
 ```
 
 ## Quick Start

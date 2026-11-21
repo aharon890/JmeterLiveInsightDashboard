@@ -6,7 +6,7 @@
 
     <groupId>com.jmeterinsight</groupId>
     <artifactId>jmeter-live-dashboard</artifactId>
-    <version>1.6.2</version>
+    <version>1.6.3</version>
     <packaging>jar</packaging>
 
     <name>JMeter Live Insight Dashboard</name>
