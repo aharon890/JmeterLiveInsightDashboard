@@ -141,12 +141,12 @@ drift had three different totals in three files. Everything else links here.
 |---|---|---|
 | Java, fast tier (smoke) | 158 | `mvn test -DexcludedGroups=slow` |
 | Java, full (regression) | 164 across 9 classes | `mvn test` |
-| Playwright `@smoke` | 27 | `npm run test:smoke` |
-| Playwright full | 206 across 24 specs | `npm test` |
+| Playwright `@smoke` | 29 | `npm run test:smoke` |
+| Playwright full | 210 across 25 specs | `npm test` |
 | Docker E2E | 17 checks, D1–D15 (with D1b, D2a, D2b) | `bash scripts/run-docker-tests.sh` |
-| **Total automated** | **370** | both tiers |
+| **Total automated** | **374** | both tiers |
 
-Measured 2026-10-18. Rather than trusting the table, regenerate it — the
+Measured 2026-11-21. Rather than trusting the table, regenerate it — the
 breakdown per class and per spec is one command each, which is why neither is
 written down:
 
