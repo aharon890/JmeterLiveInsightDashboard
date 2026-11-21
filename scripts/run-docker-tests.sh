@@ -161,6 +161,17 @@ else
     record D3 "dashboard HTML serves" FAIL
 fi
 
+# --- D3b: a bind beyond loopback answers to any host name ---
+# The container's dashboard is bound to 0.0.0.0, where the network decides the name it is
+# reached by: a Docker or Kubernetes service name, a proxy's upstream. The Host check that
+# guards a loopback bind must not apply here, or every such setup gets a 403.
+named="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: loadgen01:7566' "http://localhost:${DASHBOARD_PORT}/api/status" || true)"
+if [[ "$named" == "200" ]]; then
+    record D3b "0.0.0.0 bind answers to another host name" PASS
+else
+    record D3b "0.0.0.0 bind answers to another host name" FAIL "HTTP ${named:-none}"
+fi
+
 # --- D4: SSE stream delivers catchup ---
 # curl exits 28 when --max-time cuts the endless stream; that's expected.
 sse="$(curl -sN --max-time 6 "http://localhost:${DASHBOARD_PORT}/api/events" 2>/dev/null | head -c 4096 || true)"

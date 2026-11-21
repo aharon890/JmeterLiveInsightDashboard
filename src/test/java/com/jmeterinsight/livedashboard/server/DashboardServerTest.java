@@ -423,33 +423,248 @@ class DashboardServerTest {
         }
     }
 
+    /**
+     * No response lets another website read it. Every JSON response, the SSE stream and the
+     * error responses used to carry {@code Access-Control-Allow-Origin: *}, so any page open
+     * in the operator's browser could read the test name, the sampler names (often internal
+     * URLs) and the error messages. The dashboard is same-origin and never needed the header;
+     * curl and scripts are unaffected, because only a browser enforces it.
+     */
     @Test
-    void testCorsHeaders() throws Exception {
+    void testNoResponseIsReadableCrossOrigin() throws Exception {
         int port = findFreePort();
         LiveAggregator agg = createPopulatedAggregator();
         server = startServer(agg, port);
 
-        // The main page embeds the stop token — it must NOT be readable
-        // cross-origin, so no ACAO header on the HTML.
-        HttpURLConnection conn1 = openConnection(port, "/");
-        assertEquals(200, conn1.getResponseCode());
-        assertNull(conn1.getHeaderField("Access-Control-Allow-Origin"),
-                "Root page embeds the stop token and must not carry Access-Control-Allow-Origin");
-        conn1.disconnect();
+        for (String path : new String[]{"/", "/echarts.min.js", "/api/status", "/api/config",
+                "/api/history", "/api/events", "/unknown"}) {
+            String head = rawRequest(port, "GET", path, "127.0.0.1:" + port, "Origin: https://other.example");
+            assertFalse(head.toLowerCase(Locale.ROOT).contains("access-control-allow-origin"),
+                    "GET " + path + " must not carry Access-Control-Allow-Origin, got:\n" + head);
+        }
+        // The refusals too: a 405 and the stop endpoints' 403 are answers like any other.
+        for (String[] call : new String[][]{{"POST", "/api/status"}, {"POST", "/api/stop"}, {"POST", "/api/stop-now"}}) {
+            String head = rawRequest(port, call[0], call[1], "127.0.0.1:" + port, "Origin: https://other.example");
+            assertFalse(head.toLowerCase(Locale.ROOT).contains("access-control-allow-origin"),
+                    call[0] + " " + call[1] + " must not carry Access-Control-Allow-Origin, got:\n" + head);
+        }
+    }
 
-        // Check CORS on an API endpoint
-        HttpURLConnection conn2 = openConnection(port, "/api/status");
-        assertEquals(200, conn2.getResponseCode());
-        assertEquals("*", conn2.getHeaderField("Access-Control-Allow-Origin"),
-                "API endpoint should have Access-Control-Allow-Origin: *");
-        conn2.disconnect();
+    // --- A reader that stops reading ---
 
-        // Check CORS on a 404 response
-        HttpURLConnection conn3 = openConnection(port, "/unknown");
-        assertEquals(404, conn3.getResponseCode());
-        assertEquals("*", conn3.getHeaderField("Access-Control-Allow-Origin"),
-                "404 response should have Access-Control-Allow-Origin: *");
-        conn3.disconnect();
+    /**
+     * Asks for the SSE stream on a raw socket and never reads a byte of it: a tab frozen in a
+     * debugger, a paused VM, a hung proxy. The connection stays open, so no write to it fails.
+     */
+    private Socket openStalledSseReader(int port) throws IOException {
+        Socket socket = new Socket();
+        socket.setReceiveBufferSize(4096); // before connect: the window is agreed there
+        socket.connect(new InetSocketAddress("127.0.0.1", port), 3000);
+        socket.getOutputStream().write(("GET /api/events HTTP/1.1\r\nHost: 127.0.0.1:" + port + "\r\n\r\n")
+                .getBytes(StandardCharsets.US_ASCII));
+        socket.getOutputStream().flush();
+        return socket;
+    }
+
+    private int connectedClients(int port) throws IOException {
+        HttpURLConnection conn = openConnection(port, "/api/status");
+        conn.setConnectTimeout(3000);
+        conn.setReadTimeout(3000);
+        Map<?, ?> status = objectMapper.readValue(readResponseBody(conn), Map.class);
+        conn.disconnect();
+        return ((Number) status.get("connectedClients")).intValue();
+    }
+
+    private void awaitConnectedClients(int port, int expected, long timeoutMs) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (connectedClients(port) != expected) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("connectedClients never became " + expected + ", it is " + connectedClients(port));
+            }
+            Thread.sleep(50);
+        }
+    }
+
+    /** Broadcasts 1 MB frames, far larger than a socket buffer: a reader that reads nothing is full after the first. */
+    private Thread flood(DashboardServer target, int frames) {
+        char[] megabyte = new char[1 << 20];
+        Arrays.fill(megabyte, 'x');
+        Map<String, Object> payload = Map.of("filler", new String(megabyte));
+        Thread thread = new Thread(() -> {
+            for (int i = 0; i < frames; i++) target.broadcastEvent("filler", payload);
+        }, "test-flood");
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
+    }
+
+    /**
+     * Sending never waits for a reader. Every frame used to be written to each client in turn
+     * by the thread that sent it, so the first write to a reader whose buffers were full never
+     * returned.
+     */
+    @Test
+    void testABroadcastNeverWaitsForAReader() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+
+        try (Socket stalled = openStalledSseReader(port)) {
+            awaitConnectedClients(port, 1, 5000);
+            Thread flood = flood(server, 3);
+            flood.join(5000);
+            assertFalse(flood.isAlive(), "a broadcast is still waiting on a reader that does not read");
+        }
+    }
+
+    /**
+     * One reader that stops reading must not stop the others. The broadcaster used to block on
+     * the stalled reader's socket while holding the lock a new tab's catch-up takes: no tab got
+     * another update and a new tab got its headers and nothing after them.
+     */
+    @Test
+    void testANewTabGetsItsCatchupWhileAnotherReaderIsStalled() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+
+        try (Socket stalled = openStalledSseReader(port)) {
+            awaitConnectedClients(port, 1, 5000);
+            flood(server, 3);
+            Thread.sleep(2500); // past one 2 s tick, so the broadcaster has met the stalled reader
+
+            HttpURLConnection fresh = openConnection(port, "/api/events");
+            fresh.setConnectTimeout(3000);
+            fresh.setReadTimeout(8000);
+            assertEquals(200, fresh.getResponseCode());
+            String first = readSseEvent(fresh.getInputStream(), 6000);
+            assertTrue(first.contains("event: catchup"),
+                    "a new tab got no catch-up while another reader was stalled; it got: "
+                            + (first.length() > 80 ? first.substring(0, 80) : first));
+            fresh.disconnect();
+        }
+    }
+
+    /**
+     * A reader too far behind is dropped, not buffered on without end: what waits for it is
+     * held in JMeter's heap. Its tab reconnects by itself and gets a fresh catch-up.
+     */
+    @Test
+    void testAReaderTooFarBehindIsDropped() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+
+        try (Socket stalled = openStalledSseReader(port)) {
+            awaitConnectedClients(port, 1, 5000);
+            Thread flood = flood(server, 40); // 40 MB of frames against a 32 MB allowance
+            flood.join(20000);
+            assertFalse(flood.isAlive(), "the broadcasts did not finish");
+            awaitConnectedClients(port, 0, 5000);
+        }
+    }
+
+    // --- Host header (DNS rebinding) ---
+
+    /**
+     * One request over a raw socket, so the test chooses the Host header: HttpURLConnection
+     * always sends the one from its URL. Returns the status line and the response headers.
+     */
+    private String rawRequest(int port, String method, String path, String host, String... extraHeaders)
+            throws IOException {
+        try (Socket socket = new Socket("127.0.0.1", port)) {
+            socket.setSoTimeout(5000);
+            StringBuilder request = new StringBuilder(method + " " + path + " HTTP/1.1\r\n");
+            if (host != null) request.append("Host: ").append(host).append("\r\n");
+            for (String header : extraHeaders) request.append(header).append("\r\n");
+            if ("POST".equals(method)) request.append("Content-Length: 0\r\n");
+            request.append("Connection: close\r\n\r\n");
+            socket.getOutputStream().write(request.toString().getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().flush();
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream(), StandardCharsets.ISO_8859_1));
+            StringBuilder head = new StringBuilder();
+            for (String line = reader.readLine(); line != null && !line.isEmpty(); line = reader.readLine()) {
+                head.append(line).append('\n');
+            }
+            return head.toString();
+        }
+    }
+
+    private static int statusOf(String head) {
+        return Integer.parseInt(head.split(" ")[1]);
+    }
+
+    /**
+     * DNS rebinding: a page on attacker.example re-points its own name at 127.0.0.1, and the
+     * browser then treats the dashboard as that page's own site. It can read the page, stop
+     * token included, and call the stop endpoints with it. The request still names the
+     * attacker's host, so a dashboard bound to loopback answers only to a loopback name.
+     */
+    @Test
+    void testLoopbackBindRefusesAForeignHostName() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+        String foreign = "attacker.example:" + port;
+
+        for (String path : new String[]{"/", "/index.html", "/echarts.min.js", "/api/status",
+                "/api/config", "/api/history", "/api/events"}) {
+            assertEquals(403, statusOf(rawRequest(port, "GET", path, foreign)),
+                    "GET " + path + " with Host " + foreign + " must be refused");
+        }
+        // With the VALID token: a rebound page has read it, so the token cannot be the defence.
+        for (String path : new String[]{"/api/stop", "/api/stop-now"}) {
+            assertEquals(403, statusOf(rawRequest(port, "POST", path, foreign,
+                            "X-Stop-Token: " + server.getStopToken())),
+                    "POST " + path + " with Host " + foreign + " and the token must be refused");
+        }
+    }
+
+    @Test
+    void testLoopbackBindAnswersToEveryLoopbackName() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+
+        // Any port: an SSH tunnel or a port-forward reaches the dashboard as localhost:<another port>.
+        for (String host : new String[]{"localhost:" + port, "localhost", "LocalHost:" + port, "localhost:1",
+                "127.0.0.1:" + port, "127.0.0.1", "127.8.9.10:" + port,
+                "[::1]:" + port, "[::1]", "[0:0:0:0:0:0:0:1]:" + port}) {
+            assertEquals(200, statusOf(rawRequest(port, "GET", "/api/status", host)),
+                    "Host " + host + " names this machine and must be served");
+        }
+        // No Host header at all is not a browser (every browser sends one), so it is no rebinding.
+        assertEquals(200, statusOf(rawRequest(port, "GET", "/api/status", null)),
+                "a request with no Host header must be served");
+    }
+
+    @Test
+    void testOnlyLoopbackNamesPassOnALoopbackBind() {
+        for (String host : new String[]{"localhost", "LOCALHOST", "localhost:7566", "localhost.", "localhost.:80",
+                "127.0.0.1", "127.0.0.1:7566", "127.255.255.254:1", "[::1]", "[::1]:7566",
+                "[0:0:0:0:0:0:0:1]", "[::ffff:127.0.0.1]:7566", null}) {
+            assertTrue(DashboardServer.isHostAllowed(true, host), "must be allowed: " + host);
+        }
+        for (String host : new String[]{"attacker.example", "attacker.example:7566", "localhost.attacker.example",
+                "127.0.0.1.attacker.example:7566", "notlocalhost", "128.0.0.1", "127.0.0.1.5", "1270.0.0.1",
+                "127.0.0.256", "10.0.0.5:7566", "[::2]:7566", "[2001:db8::1]", "::1", "", " ", "localhost:",
+                "localhost:abc", "localhost:7566:1", "localhost@attacker.example", "[::1", "[::1]x"}) {
+            assertFalse(DashboardServer.isHostAllowed(true, host), "must be refused: " + host);
+        }
+    }
+
+    /**
+     * Bound to 0.0.0.0 or to a named interface, the dashboard is reached by whatever name the
+     * network gives the machine (http://loadgen01:7566, a Docker or Kubernetes service name, a
+     * proxy's upstream name), so there is no check. Docker check D3b pins this against real JMeter.
+     */
+    @Test
+    void testABindBeyondLoopbackHasNoHostCheck() {
+        for (String host : new String[]{"loadgen01:7566", "jmeter-test-12:7566", "10.0.0.5:7566",
+                "attacker.example", "localhost:7566", null}) {
+            assertTrue(DashboardServer.isHostAllowed(false, host), "no check beyond loopback: " + host);
+        }
     }
 
     @Test
@@ -838,10 +1053,9 @@ class DashboardServerTest {
      * an instance id so a reconnecting tab can tell it has been handed a DIFFERENT
      * server that took the port.
      *
-     * <p>The instance id must never be the stop token. {@code /api/events} sends
-     * {@code Access-Control-Allow-Origin: *} while {@code /} deliberately does not — see
-     * {@link #testCorsHeaders} — so anything on this payload is readable cross-origin.
-     * The token's whole purpose is that it is not.
+     * <p>The instance id must never be the stop token. The catch-up is data the page shows,
+     * and it reaches every tab, proxy and script that reads the stream; the token is the one
+     * value that authorises stopping the run, and travels only inside the page itself.
      */
     @Test
     void testCatchupCarriesIdleTimeoutAndInstanceId() throws Exception {

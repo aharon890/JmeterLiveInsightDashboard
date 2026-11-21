@@ -180,45 +180,32 @@ optimize next. Each scenario writes its report under `test-results/perf/`.
 - The 1-minute slots matched too, but that run fit in one minute; checking that
   tier needs a run of a few minutes.
 
-### Security hardening: host names, CORS, framing, CSV formulas
-- Raised 2026-10-11 by the pre-public review. More research is needed before
-  a design is chosen.
-- Measured 2026-10-11 against a real run on the default `localhost` bind,
-  sending the requests a hostile page would send:
-  - **DNS rebinding.** No handler reads the `Host` header. `GET /` with
-    `Host: attacker.example:<port>` was served, stop token included. A
-    `POST /api/stop-now` with that host and the token answered 200, and JMeter
-    exited a second later with exit code 0. The log said only "Shutdown
-    requested from dashboard". The stop token blocks ordinary cross-origin
-    pages, as designed. A rebound page is same-origin to the browser, so the
-    token does not help.
-  - **Cross-origin reads.** Every JSON response, the SSE stream and the error
-    responses carry `Access-Control-Allow-Origin: *`. Any page open in the
-    operator's browser can read the test name, sampler names (often internal
-    URLs) and error messages. The dashboard is same-origin and does not need
-    the header. `testCorsHeaders` pins the wildcard, and the comment on
-    `serverInstanceId` relies on it.
-- Not verified: the browser half. Chrome's Local Network Access should block a
-  public page reaching loopback, or ask first; Firefox and Safari were not
-  checked.
-- Candidate design, from the review:
-  - On a loopback bind only, accept `localhost`, `127.x.x.x` and `[::1]` on
-    any port, so SSH tunnels keep working, and answer 403 otherwise.
-    webpack-dev-server and Vite defend the same way. On `0.0.0.0` or a named
-    interface there is no check, so `http://loadgen01:7566` keeps working; the
-    docs should say that anyone who can reach that port can read and stop the
-    run.
-  - Drop the wildcard everywhere. curl and scripts are unaffected, since only
-    browsers enforce CORS. Only a page on another origin reading the API in a
-    browser would break, and no such use is documented.
-- To research:
-  - Reverse proxies in front of a loopback-bound dashboard would have to send
-    `Host: localhost`.
-  - Whether an opt-in `live.dashboard.allowed.hosts` is needed.
-  - Whether non-loopback binds need rebinding protection too. An internet
-    attacker cannot reach a load generator on a private network directly, but
-    can through the operator's browser.
-  - What each browser blocks today.
+### Security hardening: binds beyond loopback, framing, CSV formulas
+- Raised 2026-10-11 by the pre-public review.
+- **Fixed 2026-11-21, on a loopback bind: DNS rebinding and cross-origin reads.**
+  - Measured 2026-10-11 against a real run on the default `localhost` bind, sending the
+    requests a hostile page would send. No handler read the `Host` header: `GET /` with
+    `Host: attacker.example:<port>` was served, stop token included, and a
+    `POST /api/stop-now` with that host and the token answered 200; JMeter exited a second
+    later with exit code 0. Every JSON response, the SSE stream and the error responses
+    carried `Access-Control-Allow-Origin: *`, so any page open in the operator's browser
+    could read the test name, sampler names (often internal URLs) and error messages.
+  - Now a loopback bind answers only to `localhost`, `127.x.x.x` and `[::1]`, on any port,
+    so SSH tunnels keep working, and answers 403 otherwise (`DashboardServer.hostChecked`).
+    webpack-dev-server and Vite defend the same way. No response carries the CORS header;
+    curl and scripts are unaffected, since only browsers enforce CORS.
+  - Chosen with it: a reverse proxy in front of a loopback-bound dashboard has to send
+    `Host: localhost`. There is no `live.dashboard.allowed.hosts` opt-in; nobody has asked
+    for one.
+- Still open:
+  - **A bind beyond loopback has no Host check and no login.** On `0.0.0.0` or a named
+    interface the dashboard is reached by whatever name the network gives the machine, so
+    `http://loadgen01:7566` keeps working, and anyone who can reach that port can read and
+    stop the run; the docs say so. An internet attacker cannot reach a load generator on a
+    private network directly, but can through the operator's browser. To research: a list
+    of allowed names, or a token in the URL as Jupyter does.
+  - Not verified: the browser half. Chrome's Local Network Access should block a public
+    page reaching loopback, or ask first; Firefox and Safari were not checked.
 - Two more items from the same review, recorded as the review states them.
   Neither was verified.
   - **Framing.** The page sends neither `X-Frame-Options` nor a
