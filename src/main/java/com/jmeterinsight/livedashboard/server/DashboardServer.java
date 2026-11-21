@@ -54,15 +54,18 @@ public class DashboardServer {
 
     // Per-server secret required on state-changing endpoints. It is embedded in
     // the served page, so the dashboard can call them but a cross-origin page
-    // cannot (a custom header forces a CORS preflight, which is never granted).
+    // cannot: it cannot read the page (no response carries a CORS header), and a
+    // custom header forces a CORS preflight, which is never granted. A page that
+    // re-points its own host name at this machine is same-origin to the browser
+    // and reads the token like the dashboard does; the Host check stops that one.
     private final String stopToken = UUID.randomUUID().toString();
 
     // Identifies THIS server instance on the catchup payload, so a tab whose EventSource
     // reconnected can tell it has been handed a different server — a run that restarted,
     // or another JMeter process that took this port after the first one died. Deliberately
-    // NOT the stop token: /api/events carries Access-Control-Allow-Origin: *, so anything
-    // on that payload is readable cross-origin, and the token's whole purpose is that it
-    // is not (see the header handling for "/" and testCorsHeaders).
+    // NOT the stop token: the catch-up is data the page shows, and reaches every tab, proxy
+    // and script that reads the stream. The token authorises stopping the run and travels
+    // only inside the page itself.
     private final String serverInstanceId = UUID.randomUUID().toString();
 
     private HttpServer httpServer;
@@ -85,6 +88,12 @@ public class DashboardServer {
     private final int idleTimeoutSeconds;
     private volatile boolean testEnded = false;
     private volatile boolean stopped = false;
+
+    // True when the socket is bound to a loopback address: then only a loopback Host name is
+    // answered (see hostChecked). Set once the socket is bound, before any request is served.
+    private volatile boolean loopbackBind = false;
+    private final java.util.concurrent.atomic.AtomicBoolean foreignHostLogged =
+            new java.util.concurrent.atomic.AtomicBoolean();
 
     public DashboardServer(int port, String bind, LiveAggregator aggregator, String testName) {
         this(port, bind, aggregator, testName, 600);
@@ -133,13 +142,14 @@ public class DashboardServer {
         // which the interval check below rejects), and in the GUI it leaks one socket per run.
         boolean started = false;
         try {
-            httpServer.createContext("/", this::handleDashboard);
-            httpServer.createContext("/api/events", this::handleSseEvents);
-            httpServer.createContext("/api/status", this::handleStatus);
-            httpServer.createContext("/api/config", this::handleConfig);
-            httpServer.createContext("/api/history", this::handleHistory);
-            httpServer.createContext("/api/stop", this::handleStop);
-            httpServer.createContext("/api/stop-now", this::handleStopNow);
+            loopbackBind = httpServer.getAddress().getAddress().isLoopbackAddress();
+            httpServer.createContext("/", hostChecked(this::handleDashboard));
+            httpServer.createContext("/api/events", hostChecked(this::handleSseEvents));
+            httpServer.createContext("/api/status", hostChecked(this::handleStatus));
+            httpServer.createContext("/api/config", hostChecked(this::handleConfig));
+            httpServer.createContext("/api/history", hostChecked(this::handleHistory));
+            httpServer.createContext("/api/stop", hostChecked(this::handleStop));
+            httpServer.createContext("/api/stop-now", hostChecked(this::handleStopNow));
 
             httpServer.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "LiveDashboard-HTTP");
@@ -289,6 +299,117 @@ public class DashboardServer {
         scheduleIdleShutdownIfNeeded(); // Last client gone? Start countdown
     }
 
+    // --- Host check (DNS rebinding) ---
+
+    /**
+     * Wraps a handler so that a dashboard bound to loopback answers only to a loopback name.
+     *
+     * <p>The attack it stops is DNS rebinding: a page on attacker.example re-points its own
+     * name at 127.0.0.1, and the browser then treats this server as that page's own site. The
+     * page can read the dashboard, stop token included, and stop the run with it; the token
+     * cannot help, because a same-origin page reads it the way the dashboard does. Measured
+     * 2026-10-11: {@code POST /api/stop-now} with such a Host and the token answered 200 and
+     * JMeter exited a second later with code 0. The request still names the attacker's host,
+     * which is the one thing the page cannot change. webpack-dev-server and Vite defend the
+     * same way.
+     */
+    private com.sun.net.httpserver.HttpHandler hostChecked(com.sun.net.httpserver.HttpHandler handler) {
+        return exchange -> {
+            String host = exchange.getRequestHeaders().getFirst("Host");
+            if (!isHostAllowed(loopbackBind, host)) {
+                // Once at WARN: a hostile page can repeat the request as fast as it likes.
+                if (foreignHostLogged.compareAndSet(false, true)) {
+                    log.warn("Refused a request for host '{}' from {}: the dashboard is bound to {} and answers "
+                            + "only to localhost, 127.x.x.x or [::1]. To reach it by another name, bind it to "
+                            + "that interface or to 0.0.0.0 (live.dashboard.bind). Further refusals are logged at DEBUG.",
+                            host, exchange.getRemoteAddress(), bind);
+                } else {
+                    log.debug("Refused a request for host '{}' from {}", host, exchange.getRemoteAddress());
+                }
+                sendResponse(exchange, 403, "text/plain",
+                        "Forbidden: this dashboard is bound to localhost and answers only to localhost, "
+                        + "127.0.0.1 or [::1]. To reach it by another name, start JMeter with "
+                        + "-Jlive.dashboard.bind=0.0.0.0");
+                return;
+            }
+            handler.handle(exchange);
+        };
+    }
+
+    /**
+     * Whether a request's Host header names a host this server answers to.
+     *
+     * <p>Only a loopback bind is checked. There, {@code localhost}, any {@code 127.x.x.x} and
+     * {@code [::1]} pass on any port, so an SSH tunnel or a port-forward to another local
+     * port keeps working. Bound to {@code 0.0.0.0} or to a named interface the dashboard is
+     * reached by whatever name the network gives the machine ({@code http://loadgen01:7566},
+     * a Docker or Kubernetes service name, a proxy's upstream), so nothing is refused: anyone
+     * who can reach that port can read the run and stop it, which the docs say.
+     *
+     * <p>A request with no Host header passes: every browser sends one, so it is no rebinding.
+     * The name is never resolved; resolving it is the very thing the attacker controls.
+     */
+    static boolean isHostAllowed(boolean loopbackBind, String hostHeader) {
+        if (!loopbackBind || hostHeader == null) return true;
+        String name;
+        String port;
+        if (hostHeader.startsWith("[")) {
+            int close = hostHeader.indexOf(']');
+            if (close < 0) return false;
+            name = hostHeader.substring(1, close);
+            String rest = hostHeader.substring(close + 1);
+            if (!rest.isEmpty() && rest.charAt(0) != ':') return false;
+            port = rest.isEmpty() ? null : rest.substring(1);
+            return isPort(port) && isLoopbackIpv6Literal(name);
+        }
+        int colon = hostHeader.indexOf(':');
+        name = colon < 0 ? hostHeader : hostHeader.substring(0, colon);
+        port = colon < 0 ? null : hostHeader.substring(colon + 1);
+        if (!isPort(port)) return false;
+        if (name.endsWith(".")) name = name.substring(0, name.length() - 1); // the rooted form, localhost.
+        return "localhost".equalsIgnoreCase(name) || isLoopbackIpv4Literal(name);
+    }
+
+    /** No port, or 1 to 5 digits. */
+    private static boolean isPort(String port) {
+        if (port == null) return true;
+        if (port.isEmpty() || port.length() > 5) return false;
+        for (int i = 0; i < port.length(); i++) {
+            if (port.charAt(i) < '0' || port.charAt(i) > '9') return false;
+        }
+        return true;
+    }
+
+    /** Four decimal parts of 0 to 255, the first 127. */
+    private static boolean isLoopbackIpv4Literal(String name) {
+        String[] parts = name.split("[.]", -1);
+        if (parts.length != 4) return false;
+        for (String part : parts) {
+            if (part.isEmpty() || part.length() > 3) return false;
+            for (int i = 0; i < part.length(); i++) {
+                if (part.charAt(i) < '0' || part.charAt(i) > '9') return false;
+            }
+            if (Integer.parseInt(part) > 255) return false;
+        }
+        return Integer.parseInt(parts[0]) == 127;
+    }
+
+    /** An IPv6 literal, as written between the brackets, that is the loopback address. */
+    private static boolean isLoopbackIpv6Literal(String name) {
+        if (name.indexOf(':') < 0) return false;
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            boolean literalChar = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+                    || c == ':' || c == '.';
+            if (!literalChar) return false; // a name, or a zone id: never handed to a resolver
+        }
+        try {
+            return java.net.InetAddress.getByName(name).isLoopbackAddress();
+        } catch (java.net.UnknownHostException | RuntimeException notAnAddress) {
+            return false;
+        }
+    }
+
     // --- HTTP Handlers ---
 
     private void handleDashboard(HttpExchange exchange) throws IOException {
@@ -317,7 +438,6 @@ public class DashboardServer {
         exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
         exchange.getResponseHeaders().set("Cache-Control", "no-cache");
         exchange.getResponseHeaders().set("Connection", "keep-alive");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         boolean gzip = acceptsGzip(exchange);
         if (gzip) exchange.getResponseHeaders().set("Content-Encoding", "gzip");
         exchange.sendResponseHeaders(200, 0);
@@ -398,7 +518,6 @@ public class DashboardServer {
         // many samplers is tens of MB as one String.
         CatchupSnapshot history = aggregator.snapshotHistory();
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         boolean gzip = acceptsGzip(exchange);
         if (gzip) exchange.getResponseHeaders().set("Content-Encoding", "gzip");
         exchange.sendResponseHeaders(200, 0);
@@ -614,17 +733,13 @@ public class DashboardServer {
     }
 
     private void sendResponse(HttpExchange exchange, int code, String contentType, String body) throws IOException {
-        // The dashboard page (and its JS bundle) embeds the per-server stop
-        // token. Serving it with a wildcard ACAO would let any cross-origin
-        // page fetch the HTML and read the secret, defeating the token check —
-        // so only the read-only JSON API responses carry the CORS header.
-        boolean isHtmlAsset = contentType.startsWith("text/html")
-                || contentType.startsWith("application/javascript");
+        // No response carries Access-Control-Allow-Origin. The dashboard is same-origin and
+        // never needed it, and with the wildcard the JSON responses once had, any page open in
+        // the operator's browser could read the test name, the sampler names (often internal
+        // URLs) and the error messages. curl and scripts are unaffected: only a browser
+        // enforces CORS. Pinned by testNoResponseIsReadableCrossOrigin.
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", contentType);
-        if (!isHtmlAsset) {
-            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-        }
         exchange.sendResponseHeaders(code, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);

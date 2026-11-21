@@ -139,12 +139,12 @@ drift had three different totals in three files. Everything else links here.
 
 | Layer | Count | Command |
 |---|---|---|
-| Java, fast tier (smoke) | 158 | `mvn test -DexcludedGroups=slow` |
-| Java, full (regression) | 164 across 9 classes | `mvn test` |
+| Java, fast tier (smoke) | 162 | `mvn test -DexcludedGroups=slow` |
+| Java, full (regression) | 168 across 9 classes | `mvn test` |
 | Playwright `@smoke` | 29 | `npm run test:smoke` |
 | Playwright full | 210 across 25 specs | `npm test` |
-| Docker E2E | 17 checks, D1–D15 (with D1b, D2a, D2b) | `bash scripts/run-docker-tests.sh` |
-| **Total automated** | **374** | both tiers |
+| Docker E2E | 18 checks, D1–D15 (with D1b, D2a, D2b, D3b) | `bash scripts/run-docker-tests.sh` |
+| **Total automated** | **378** | both tiers |
 
 Measured 2026-11-21. Rather than trusting the table, regenerate it — the
 breakdown per class and per spec is one command each, which is why neither is
