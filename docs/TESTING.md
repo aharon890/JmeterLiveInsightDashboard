@@ -122,7 +122,7 @@ and `docker_host_path` from `scripts/lib/common.sh` instead:
 
 ```bash
 docker run --rm \
-  -v "$PWD/target/jmeter-live-dashboard-1.6.2.jar:/opt/apache-jmeter-5.6.3/lib/ext/plugin.jar" \
+  -v "$PWD/target/jmeter-live-dashboard-1.6.3.jar:/opt/apache-jmeter-5.6.3/lib/ext/plugin.jar" \
   -v "$PWD/test-plans:/test:ro" -v "$PWD/test-results/load:/results" \
   jmeter-livedashboard-test:5.6.3 \
   -n -t /test/spike-load-test-30min.jmx -l /results/out.jtl -j /results/out.log \
