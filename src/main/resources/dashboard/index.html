@@ -887,7 +887,9 @@ function refreshCharts(){
         var o={animation:false,grid:{left:65,right:30,top:45,bottom:80},
             toolbox:{show:true,right:8,top:0,feature:{saveAsImage:{type:'png',title:'Save PNG',pixelRatio:2}},iconStyle:{borderColor:getTheme().textColor}},
             tooltip:{trigger:'axis',backgroundColor:'rgba(0,0,0,.85)',borderWidth:0,textStyle:{color:'#fff',fontSize:11},confine:true},
-            legend:{bottom:5,type:'scroll',textStyle:{color:getTheme().textColor,fontSize:10},formatter:truncLegend,tooltip:{show:true}},
+            // The tooltip shows the full name where truncLegend cut it. ECharts 5.5.0 writes that
+            // text into the tooltip as HTML, so the name goes through escH (a formatter's result is used as is).
+            legend:{bottom:5,type:'scroll',textStyle:{color:getTheme().textColor,fontSize:10},formatter:truncLegend,tooltip:{show:true,formatter:p=>escH(p.name)}},
             xAxis:{type:'time',axisLine:{lineStyle:{color:getTheme().lineColor}},axisLabel:{color:getTheme().textColor,fontSize:11,formatter:v=>fmtTime(v)},splitLine:{show:false}},
             yAxis:{type:'value',name:yName,min:0,minInterval:yName.includes('ms')?1:undefined,nameTextStyle:{color:getTheme().textColor,fontSize:11},axisLine:{show:false},axisLabel:{color:getTheme().textColor,fontSize:11,formatter:yName.includes('ms')||yName.includes('Response')?fmtMsAxis:undefined},splitLine:{lineStyle:{color:getTheme().splitLineColor}}},
             dataZoom:[{type:'inside',xAxisIndex:0},{type:'slider',xAxisIndex:0,bottom:38,height:18,left:65,right:60,labelFormatter:v=>fmtTime(v)}]};
@@ -1113,7 +1115,10 @@ function renderSamplerTable(){
         var s=stats[name],sla=S.slaStatus[name]||{},slaCls=getSlaClass(sla),slaLbl=getSlaLabel(sla),er=s.errorRate||0;
         var isChild=!!S.hierarchy[name],indent=isChild?'padding-left:24px':'';
         if(isChild&&!S.showChildren)return;
-        html+='<tr class="expandable" data-sampler="'+escH(name)+'" onclick="toggleSamplerDetail(\''+escH(name).replace(/'/g,"\\'")+'\')">'+'<td><div class="sampler-name-cell" style="'+indent+'"><span class="sla-badge-mini sla-badge-'+slaCls+'">'+slaLbl+'</span>'+
+        // The handler reads the name back from the row. Written into the handler as a JS string
+        // it escaped the quote and not the backslash, so a name holding \') ran the rest of
+        // itself as script, and one holding \t or ending in \ never opened its row.
+        html+='<tr class="expandable" data-sampler="'+escH(name)+'" onclick="toggleSamplerDetail(this.dataset.sampler)">'+'<td><div class="sampler-name-cell" style="'+indent+'"><span class="sla-badge-mini sla-badge-'+slaCls+'">'+slaLbl+'</span>'+
             '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+getColor(name,S.knownSamplers.indexOf(name))+';margin-right:4px;flex-shrink:0"></span>'+
             '<span class="sampler-name-text" title="'+escH(name)+(isChild?' (child of '+escH(S.hierarchy[name])+')':'')+'">'+escH(name)+'</span></div></td>'+
             '<td'+hs('samples')+'>'+fmtN(s.samples||0)+'</td><td'+hs('errors')+'>'+fmtN(s.errors||0)+'</td><td'+hs('errorRate')+' class="'+(er>0?'cell-error':'')+'">'+fmtPct(er)+'</td>'+
@@ -1605,7 +1610,7 @@ var th=gT();
 return{animation:false,grid:{left:65,right:30,top:45,bottom:80},
 toolbox:{show:true,right:8,top:0,feature:{saveAsImage:{type:'png',title:'Save PNG',pixelRatio:2}},iconStyle:{borderColor:th.text}},
 tooltip:{trigger:'axis',backgroundColor:'rgba(0,0,0,.85)',borderWidth:0,textStyle:{color:'#fff',fontSize:11},confine:true},
-legend:{bottom:5,type:'scroll',textStyle:{color:th.text,fontSize:10},formatter:tL,tooltip:{show:true}},
+legend:{bottom:5,type:'scroll',textStyle:{color:th.text,fontSize:10},formatter:tL,tooltip:{show:true,formatter:function(p){return eH(p.name)}}},
 xAxis:{type:'time',axisLine:{lineStyle:{color:th.line}},axisLabel:{color:th.text,fontSize:11,formatter:function(v){return fT(v)}},splitLine:{show:false}},
 yAxis:{type:'value',name:yName,min:0,nameTextStyle:{color:th.text,fontSize:11},axisLine:{show:false},axisLabel:{color:th.text,fontSize:11,formatter:yName.indexOf('ms')>=0?fMsAxis:undefined},splitLine:{lineStyle:{color:th.split}}},
 dataZoom:[{type:'inside',xAxisIndex:0},{type:'slider',xAxisIndex:0,bottom:38,height:18,left:65,right:60,labelFormatter:function(v){return fT(v)}}]}}
