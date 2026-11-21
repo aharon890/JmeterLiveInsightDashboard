@@ -450,6 +450,120 @@ class DashboardServerTest {
         }
     }
 
+    // --- A reader that stops reading ---
+
+    /**
+     * Asks for the SSE stream on a raw socket and never reads a byte of it: a tab frozen in a
+     * debugger, a paused VM, a hung proxy. The connection stays open, so no write to it fails.
+     */
+    private Socket openStalledSseReader(int port) throws IOException {
+        Socket socket = new Socket();
+        socket.setReceiveBufferSize(4096); // before connect: the window is agreed there
+        socket.connect(new InetSocketAddress("127.0.0.1", port), 3000);
+        socket.getOutputStream().write(("GET /api/events HTTP/1.1\r\nHost: 127.0.0.1:" + port + "\r\n\r\n")
+                .getBytes(StandardCharsets.US_ASCII));
+        socket.getOutputStream().flush();
+        return socket;
+    }
+
+    private int connectedClients(int port) throws IOException {
+        HttpURLConnection conn = openConnection(port, "/api/status");
+        conn.setConnectTimeout(3000);
+        conn.setReadTimeout(3000);
+        Map<?, ?> status = objectMapper.readValue(readResponseBody(conn), Map.class);
+        conn.disconnect();
+        return ((Number) status.get("connectedClients")).intValue();
+    }
+
+    private void awaitConnectedClients(int port, int expected, long timeoutMs) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (connectedClients(port) != expected) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("connectedClients never became " + expected + ", it is " + connectedClients(port));
+            }
+            Thread.sleep(50);
+        }
+    }
+
+    /** Broadcasts 1 MB frames, far larger than a socket buffer: a reader that reads nothing is full after the first. */
+    private Thread flood(DashboardServer target, int frames) {
+        char[] megabyte = new char[1 << 20];
+        Arrays.fill(megabyte, 'x');
+        Map<String, Object> payload = Map.of("filler", new String(megabyte));
+        Thread thread = new Thread(() -> {
+            for (int i = 0; i < frames; i++) target.broadcastEvent("filler", payload);
+        }, "test-flood");
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
+    }
+
+    /**
+     * Sending never waits for a reader. Every frame used to be written to each client in turn
+     * by the thread that sent it, so the first write to a reader whose buffers were full never
+     * returned.
+     */
+    @Test
+    void testABroadcastNeverWaitsForAReader() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+
+        try (Socket stalled = openStalledSseReader(port)) {
+            awaitConnectedClients(port, 1, 5000);
+            Thread flood = flood(server, 3);
+            flood.join(5000);
+            assertFalse(flood.isAlive(), "a broadcast is still waiting on a reader that does not read");
+        }
+    }
+
+    /**
+     * One reader that stops reading must not stop the others. The broadcaster used to block on
+     * the stalled reader's socket while holding the lock a new tab's catch-up takes: no tab got
+     * another update and a new tab got its headers and nothing after them.
+     */
+    @Test
+    void testANewTabGetsItsCatchupWhileAnotherReaderIsStalled() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+
+        try (Socket stalled = openStalledSseReader(port)) {
+            awaitConnectedClients(port, 1, 5000);
+            flood(server, 3);
+            Thread.sleep(2500); // past one 2 s tick, so the broadcaster has met the stalled reader
+
+            HttpURLConnection fresh = openConnection(port, "/api/events");
+            fresh.setConnectTimeout(3000);
+            fresh.setReadTimeout(8000);
+            assertEquals(200, fresh.getResponseCode());
+            String first = readSseEvent(fresh.getInputStream(), 6000);
+            assertTrue(first.contains("event: catchup"),
+                    "a new tab got no catch-up while another reader was stalled; it got: "
+                            + (first.length() > 80 ? first.substring(0, 80) : first));
+            fresh.disconnect();
+        }
+    }
+
+    /**
+     * A reader too far behind is dropped, not buffered on without end: what waits for it is
+     * held in JMeter's heap. Its tab reconnects by itself and gets a fresh catch-up.
+     */
+    @Test
+    void testAReaderTooFarBehindIsDropped() throws Exception {
+        int port = findFreePort();
+        LiveAggregator agg = createPopulatedAggregator();
+        server = startServer(agg, port);
+
+        try (Socket stalled = openStalledSseReader(port)) {
+            awaitConnectedClients(port, 1, 5000);
+            Thread flood = flood(server, 40); // 40 MB of frames against a 32 MB allowance
+            flood.join(20000);
+            assertFalse(flood.isAlive(), "the broadcasts did not finish");
+            awaitConnectedClients(port, 0, 5000);
+        }
+    }
+
     // --- Host header (DNS rebinding) ---
 
     /**

@@ -220,7 +220,7 @@ public class DashboardServer {
             scheduler.shutdownNow();
         }
         for (SseClient client : sseClients) {
-            try { client.close(); } catch (Exception ignored) {}
+            client.drop();
         }
         sseClients.clear();
         if (httpServer != null) {
@@ -481,13 +481,15 @@ public class DashboardServer {
         } catch (Exception e) {
             log.warn("Failed to send catchup data: {}", e.getMessage());
         }
-        if (!sent || !client.goLive()) {
-            client.close();
+        // From here this thread is the client's writer: it writes what queued behind the
+        // catch-up, then every frame as it arrives, and comes back when the reader is gone.
+        try {
+            if (sent) client.writeQueuedFrames();
+        } finally {
+            client.finish();
             if (sseClients.remove(client) && sseClients.isEmpty()) onClientDisconnected();
+            log.debug("SSE client gone. Total clients: {}", sseClients.size());
         }
-
-        // Keep the connection open - don't close the exchange.
-        // The SSE client will be removed when the connection drops.
     }
 
     private void handleStatus(HttpExchange exchange) throws IOException {
@@ -636,9 +638,11 @@ public class DashboardServer {
             }
         }
         if (!deadClients.isEmpty()) {
-            sseClients.removeAll(deadClients);
+            // removeAll is false when each client's own writer already took it off the list,
+            // and then that writer has made the empty-list call too.
+            boolean removed = sseClients.removeAll(deadClients);
             log.debug("Removed {} disconnected SSE clients. Active: {}", deadClients.size(), sseClients.size());
-            if (sseClients.isEmpty()) onClientDisconnected();
+            if (removed && sseClients.isEmpty()) onClientDisconnected();
         }
     }
 
@@ -759,18 +763,31 @@ public class DashboardServer {
     // --- SSE Client ---
 
     private static class SseClient {
-        // A client whose catch-up takes longer than this many broadcasts
-        // (over half an hour at the 2 s default) is dropped, not buffered on.
-        private static final int MAX_PENDING = 1000;
+        // A reader this far behind is dropped, not buffered on. By frames: over half an hour
+        // at the 2 s default, which the catch-up of a long run on a slow link may need. By
+        // size: at 1,000 samplers one frame is ~200 KB of JSON, and a thousand of those is
+        // the heap.
+        private static final int MAX_QUEUED_FRAMES = 1000;
+        private static final long MAX_QUEUED_CHARS = 32L * 1024 * 1024;
 
         private final OutputStream outputStream;
         private final HttpExchange exchange;
         private volatile boolean alive = true;
 
-        // Broadcasts that arrived while the catch-up was still being written,
-        // or null once the client is live. While non-null, only the handler
-        // thread writing the catch-up touches the stream.
-        private List<String[]> pending = new ArrayList<>();
+        // Frames waiting for this client's writer, oldest first. A sender only ever adds here.
+        // The stream is written by one thread, the client's own handler thread: the catch-up
+        // first, then these. So a reader that stops reading (a tab frozen in a debugger, a
+        // paused VM, a hung proxy) blocks that thread and no other. Every frame used to be
+        // written by whoever sent it, which is the broadcaster, for each client in turn: once
+        // a stalled reader's socket buffers were full that write never returned, no tab got
+        // another update, a new tab waited for the lock the broadcaster held, and the slots
+        // it should have closed stayed open in the aggregator.
+        private final java.util.ArrayDeque<String[]> queue = new java.util.ArrayDeque<>();
+        private long queuedChars = 0;
+
+        // The handler thread while it serves this client, so drop() can interrupt it.
+        // Guarded by queue. The client is built on that thread.
+        private Thread writer = Thread.currentThread();
 
         SseClient(OutputStream outputStream, HttpExchange exchange) {
             this.outputStream = outputStream;
@@ -781,7 +798,7 @@ public class DashboardServer {
             void writeTo(OutputStream out) throws IOException;
         }
 
-        /** Writes the catch-up frame directly; called once, before {@link #goLive}. */
+        /** Writes the catch-up frame directly; called once, before {@link #writeQueuedFrames}. */
         boolean writeCatchup(Body body) {
             if (!alive) return false;
             try {
@@ -795,56 +812,87 @@ public class DashboardServer {
                 out.flush();
                 return true;
             } catch (IOException e) {
-                close();
+                alive = false;
                 return false;
             }
         }
 
-        /** Sends what queued during the catch-up, in order, then sends directly. */
-        synchronized boolean goLive() {
-            List<String[]> queued = pending;
-            pending = null;
-            if (queued != null) {
-                for (String[] frame : queued) {
-                    if (!write(frame[0], frame[1])) return false;
-                }
-            }
-            return alive;
-        }
-
-        synchronized boolean send(String event, String data) {
-            if (!alive) return false;
-            if (pending != null) {
-                if (pending.size() >= MAX_PENDING) {
-                    close();
+        /** Queues a frame for the writer. Never touches the socket, so it never waits for a reader. */
+        boolean send(String event, String data) {
+            synchronized (queue) {
+                if (!alive) return false;
+                // One frame alone always fits: the size limit is on what is waiting behind others.
+                if (queue.size() >= MAX_QUEUED_FRAMES
+                        || (!queue.isEmpty() && queuedChars + data.length() > MAX_QUEUED_CHARS)) {
+                    dropLocked();
                     return false;
                 }
-                pending.add(new String[]{event, data});
+                queue.add(new String[]{event, data});
+                queuedChars += data.length();
+                queue.notifyAll();
                 return true;
             }
-            return write(event, data);
         }
 
-        private boolean write(String event, String data) {
-            if (!alive) return false;
+        /**
+         * Writes every queued frame, in order, as it arrives. Runs on the client's handler
+         * thread and returns when the reader is gone or was dropped.
+         */
+        void writeQueuedFrames() {
             try {
-                StringBuilder sb = new StringBuilder();
-                sb.append("event: ").append(event).append('\n');
-                // SSE data field: split multi-line JSON into multiple data: lines
-                // For single-line JSON, one data: line suffices
-                sb.append("data: ").append(data).append("\n\n");
-                outputStream.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-                outputStream.flush();
-                return true;
-            } catch (IOException e) {
-                alive = false;
-                close();
-                return false;
+                while (true) {
+                    String[] frame;
+                    synchronized (queue) {
+                        while (alive && queue.isEmpty()) queue.wait();
+                        if (!alive) return;
+                        frame = queue.poll();
+                        queuedChars -= frame[1].length();
+                    }
+                    write(frame[0], frame[1]);
+                }
+            } catch (IOException | InterruptedException readerGone) {
+                // The reader left, or drop() interrupted this thread.
             }
         }
 
-        void close() {
+        private void write(String event, String data) throws IOException {
+            StringBuilder sb = new StringBuilder(data.length() + event.length() + 16);
+            sb.append("event: ").append(event).append('\n');
+            // SSE data field: split multi-line JSON into multiple data: lines
+            // For single-line JSON, one data: line suffices
+            sb.append("data: ").append(data).append("\n\n");
+            outputStream.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+        }
+
+        /**
+         * Ends the client, from any thread. It does not touch the stream: closing a stream
+         * waits for the write in progress, and a stalled reader's never ends. Interrupting
+         * the writer closes the socket under that write instead.
+         */
+        void drop() {
+            synchronized (queue) {
+                dropLocked();
+            }
+        }
+
+        private void dropLocked() {
             alive = false;
+            queue.clear();
+            queuedChars = 0;
+            queue.notifyAll();
+            if (writer != null) writer.interrupt();
+        }
+
+        /** The writer's last act, on its own thread: give the thread back clean and close the exchange. */
+        void finish() {
+            synchronized (queue) {
+                alive = false;
+                queue.clear();
+                queuedChars = 0;
+                writer = null; // after this line no drop() can interrupt this thread
+            }
+            Thread.interrupted(); // and one that already did must not follow it back to the pool
             try { outputStream.close(); } catch (IOException ignored) {}
             try { exchange.close(); } catch (Exception ignored) {}
         }
