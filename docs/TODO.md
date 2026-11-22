@@ -205,7 +205,12 @@ optimize next. Each scenario writes its report under `test-results/perf/`.
       Jupyter does it: the start line of `jmeter.log` prints the address with `?token=...`,
       opening it once sets a cookie, a script sends `Authorization: token <token>`, and a
       request without the token gets 401 on every path. Docker checks D16a-e pin it
-      against real JMeter.
+      against real JMeter. A token that is set is asked for on every bind, localhost
+      included: a proxy or a tunnel in front of a localhost dashboard writes its own
+      Host header.
+    - Known limits of the link: an empty value counts as not set (JMeter drops
+      `-Jname=`); a token of your own is readable in every run's `jmeter.log`; the
+      browser JMeter opens gets the link as a command-line argument.
     - Still open: it is off unless asked for. Not set, anyone who can reach the port can
       read and stop the run, and the log warns at start. Making the link the default
       beyond localhost waits until the tools that open dashboards pass the token (perf

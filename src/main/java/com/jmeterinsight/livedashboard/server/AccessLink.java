@@ -21,6 +21,15 @@ public final class AccessLink {
     private static final Pattern OWN_TOKEN = Pattern.compile("[A-Za-z0-9._~-]{16,128}");
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * The generated token, made once for the life of this JMeter process. In the JMeter window every
+     * Start begins a new dashboard; a new token each time would turn away a teammate's open tab at
+     * every re-run. Made on first use, so a JMeter that never asks for one makes none.
+     */
+    private static final class ProcessToken {
+        static final String VALUE = newToken();
+    }
+
     /** The token requests must carry; null when no access link is asked for. */
     public final String token;
     /** True when the property said {@code not_required}: an open dashboard beyond localhost is intended. */
@@ -39,11 +48,11 @@ public final class AccessLink {
         String value = configured == null ? "" : configured.trim();
         if (value.isEmpty()) return new AccessLink(null, false, null);
         if (NOT_REQUIRED.equalsIgnoreCase(value)) return new AccessLink(null, true, null);
-        if (GENERATE.equalsIgnoreCase(value)) return new AccessLink(newToken(), false, null);
+        if (GENERATE.equalsIgnoreCase(value)) return new AccessLink(ProcessToken.VALUE, false, null);
         if (OWN_TOKEN.matcher(value).matches()) return new AccessLink(value, false, null);
         // Starting open would be the unsafe reading of a typo, and starting no dashboard would lose the run's
         // live view. A generated token is safe and still usable: the link is in the log.
-        return new AccessLink(newToken(), false, "live.dashboard.access.token cannot be used as a token: a token "
+        return new AccessLink(ProcessToken.VALUE, false, "live.dashboard.access.token cannot be used as a token: a token "
                 + "of your own is 16 to 128 characters of letters, digits, '-', '_', '.' or '~'. A generated "
                 + "token is used instead; the link is on the dashboard's start line.");
     }

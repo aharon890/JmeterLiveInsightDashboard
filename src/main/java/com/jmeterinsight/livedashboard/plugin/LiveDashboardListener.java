@@ -64,7 +64,7 @@ public class LiveDashboardListener extends ResultCollector {
     public static final String APDEX_THRESHOLD = "live.dashboard.apdex.threshold";
     public static final String IDLE_TIMEOUT = "live.dashboard.idle.timeout";
     public static final String ENABLED = "live.dashboard.enabled";
-    /** The access link of a dashboard bound beyond localhost: a token of your own, "generate" or "not_required". */
+    /** The dashboard's access link: a token of your own, "generate" or "not_required". Once set it is asked for on every bind. */
     public static final String ACCESS_TOKEN = "live.dashboard.access.token";
 
     // JMeter's own HTML-report Apdex thresholds, set in bin/jmeter.properties and

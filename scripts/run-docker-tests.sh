@@ -412,13 +412,16 @@ else
     record D16c "without the link the page and the data are refused" FAIL "/api/status HTTP ${without_api:-none}, / HTTP ${without_page:-none}"
 fi
 
-# A browser: the link once, then the plain address with the cookie it set.
+# A browser: the link once, then the plain address with the cookie it set. The cookie is named
+# after the port in the browser's address (the published port), not the 7566 the server listens
+# on inside the container: two containers published side by side keep their own cookies.
 opened="$(access_code -c "$ACCESS_RESULTS/cookies.txt" "http://localhost:${DASHBOARD_PORT}/?token=${access_token}")"
 remembered="$(access_code -b "$ACCESS_RESULTS/cookies.txt" "http://localhost:${DASHBOARD_PORT}/api/status")"
-if [[ "$opened" == "302" && "$remembered" == "200" ]]; then
-    record D16d "the link sets a cookie, and the plain address then answers" PASS
+cookie_names="$(awk '$6 ~ /^ld_access_/ {print $6}' "$ACCESS_RESULTS/cookies.txt" 2>/dev/null | tr '\n' ' ')"
+if [[ "$opened" == "302" && "$remembered" == "200" && "$cookie_names" == "ld_access_${DASHBOARD_PORT} " ]]; then
+    record D16d "the link sets a cookie named after the published port, and the plain address then answers" PASS
 else
-    record D16d "the link sets a cookie, and the plain address then answers" FAIL "link HTTP ${opened:-none}, then /api/status HTTP ${remembered:-none}"
+    record D16d "the link sets a cookie named after the published port, and the plain address then answers" FAIL "link HTTP ${opened:-none}, then /api/status HTTP ${remembered:-none}, cookie: ${cookie_names:-none} (expected ld_access_${DASHBOARD_PORT})"
 fi
 
 # A script: the token in a header.

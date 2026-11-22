@@ -139,12 +139,12 @@ drift had three different totals in three files. Everything else links here.
 
 | Layer | Count | Command |
 |---|---|---|
-| Java, fast tier (smoke) | 178 | `mvn test -DexcludedGroups=slow` |
-| Java, full (regression) | 184 across 10 classes | `mvn test` |
+| Java, fast tier (smoke) | 179 | `mvn test -DexcludedGroups=slow` |
+| Java, full (regression) | 185 across 10 classes | `mvn test` |
 | Playwright `@smoke` | 29 | `npm run test:smoke` |
 | Playwright full | 210 across 25 specs | `npm test` |
 | Docker E2E | 23 checks, D1–D16 (with D1b, D2a, D2b, D3b, D16a–e) | `bash scripts/run-docker-tests.sh` |
-| **Total automated** | **399** | both tiers |
+| **Total automated** | **395** | Java full + Playwright full; the Docker checks are counted in their own row |
 
 Measured 2026-11-21. Rather than trusting the table, regenerate it — the
 breakdown per class and per spec is one command each, which is why neither is
@@ -259,8 +259,9 @@ If you add tests, update this table and nothing else.
     D16a: the first run, bound to `0.0.0.0` with no token, warns in `jmeter.log` that
     it is open. A second short run asks for `generate`. D16b: its start line prints an
     address ending in `?token=` and 48 hex characters. D16c: without the link the page
-    and `/api/status` answer 401. D16d: the link answers 302 and sets a cookie, and the
-    plain address then answers 200 with it. D16e: a script's `Authorization: token`
+    and `/api/status` answer 401. D16d: the link answers 302 and sets a cookie named after
+    the published port (7599, not the 7566 inside the container), and the plain address
+    then answers 200 with it. D16e: a script's `Authorization: token`
     header is accepted. Only real JMeter shows the `-J` property, the log line and the
     refusal together.
 

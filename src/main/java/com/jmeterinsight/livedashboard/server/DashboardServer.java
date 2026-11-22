@@ -110,7 +110,7 @@ public class DashboardServer {
 
     /**
      * @param accessToken the token of the dashboard's access link (see accessChecked), or null for none.
-     *                    It is asked for only when the dashboard is bound beyond localhost.
+     *                    A token that is set is asked for on every bind, localhost included.
      */
     public DashboardServer(int port, String bind, LiveAggregator aggregator, String testName, int idleTimeoutSeconds,
                            String accessToken) {
@@ -314,17 +314,17 @@ public class DashboardServer {
         scheduleIdleShutdownIfNeeded(); // Last client gone? Start countdown
     }
 
-    // --- Access link (a dashboard bound beyond localhost) ---
+    // --- Access link (live.dashboard.access.token) ---
 
     static final String ACCESS_LINK_NEEDED = "This dashboard needs its access link.\n\n"
-            + "It is bound beyond localhost, so it answers only to someone who has the link from the "
+            + "It was started with an access token, so it answers only to someone who has the link from the "
             + "\"Live Dashboard ... started:\" line of jmeter.log (the link ends in ?token=...). "
             + "Open that link once and this browser remembers it. "
             + "A script sends the header \"Authorization: token <the token>\".\n";
 
     /**
-     * Wraps a handler so that a dashboard bound beyond localhost, with a token set
-     * (live.dashboard.access.token), answers only to someone who holds its access link.
+     * Wraps a handler so that a dashboard started with a token (live.dashboard.access.token)
+     * answers only to someone who holds its access link.
      *
      * <p>Bound to 0.0.0.0 or to a named interface, anyone who could reach the port could read the
      * run (sampler names, often internal URLs, and error messages) and stop JMeter, which then
@@ -334,9 +334,14 @@ public class DashboardServer {
      * &lt;token&gt;" instead. The live stream is an EventSource, which cannot send a header, so for
      * a browser the cookie is the only carrier.
      *
-     * <p>A dashboard bound to localhost is never asked: the Host check already keeps other
-     * machines and other sites out, and nothing about a local run changes. The token is not
-     * encryption: it keeps out whoever can reach the port, not whoever can read the network.
+     * <p>A token that is set is asked for on every bind, localhost included, as Jupyter asks on
+     * localhost. A dashboard on localhost is still reached from other machines when something
+     * forwards to it (a reverse proxy on the same machine, an SSH tunnel, a port-forward), and
+     * such a client writes its own Host header, so the Host check does not keep it out. Asking
+     * only beyond localhost left exactly that setup open while the operator believed a token was
+     * in force (found in review, 2026-11-22). With no token set nothing is asked for, on any
+     * bind. The token is not encryption: it keeps out whoever can reach the port, not whoever
+     * can read the network.
      */
     private com.sun.net.httpserver.HttpHandler accessChecked(com.sun.net.httpserver.HttpHandler handler) {
         return exchange -> {
@@ -345,9 +350,10 @@ public class DashboardServer {
                 return;
             }
             java.net.URI uri = exchange.getRequestURI();
+            String cookieName = accessCookieName(exchange.getRequestHeaders().getFirst("Host"));
             if (tokenMatches(queryParameter(uri.getRawQuery(), "token"))) {
                 exchange.getResponseHeaders().add("Set-Cookie",
-                        accessCookieName() + "=" + accessToken + "; Path=/; HttpOnly; SameSite=Lax");
+                        cookieName + "=" + accessToken + "; Path=/; HttpOnly; SameSite=Lax");
                 String path = uri.getPath();
                 if ("GET".equals(exchange.getRequestMethod()) && ("/".equals(path) || "/index.html".equals(path))) {
                     // The link itself: show the page at its plain address, so the token is not left
@@ -365,7 +371,7 @@ public class DashboardServer {
                 return;
             }
             if (tokenMatches(authorizationToken(exchange.getRequestHeaders().getFirst("Authorization")))
-                    || tokenMatches(cookieValue(exchange.getRequestHeaders().get("Cookie"), accessCookieName()))) {
+                    || tokenMatches(cookieValue(exchange.getRequestHeaders().get("Cookie"), cookieName))) {
                 handler.handle(exchange);
                 return;
             }
@@ -390,11 +396,36 @@ public class DashboardServer {
     }
 
     /**
-     * The cookie the access link sets. Its name carries the port: a browser keeps cookies per host,
-     * not per port, so two dashboards on one machine would overwrite each other's under one name.
+     * The cookie the access link sets for a request to the given Host. Its name carries a port: a
+     * browser keeps cookies per host, not per port, so two dashboards on one machine would
+     * overwrite each other's under one name.
+     *
+     * <p>It is the port in the browser's address, not the port this server listens on. Two JMeter
+     * containers both listen on 7566 and are published as 7566 and 7567, and two tunnels end at
+     * two local ports: named after the server's own port, the second link would replace the first
+     * one's cookie and the first tab would get 401 on its next request. An address with no port
+     * in it (a proxy on port 80) gets the server's own port.
      */
+    String accessCookieName(String hostHeader) {
+        String requested = portOfHost(hostHeader);
+        return "ld_access_" + (requested != null ? requested : String.valueOf(port));
+    }
+
+    /** The cookie's name for an address that names this server's own port. */
     String accessCookieName() {
-        return "ld_access_" + port;
+        return accessCookieName(null);
+    }
+
+    /**
+     * The port a Host header names, as written: 1 to 5 digits after the host. Null when it names
+     * none. Digits only, because the value goes into a cookie's name.
+     */
+    static String portOfHost(String hostHeader) {
+        if (hostHeader == null) return null;
+        int colon = hostHeader.lastIndexOf(':');
+        if (colon < 0 || colon < hostHeader.lastIndexOf(']')) return null;
+        String candidate = hostHeader.substring(colon + 1);
+        return !candidate.isEmpty() && isPort(candidate) ? candidate : null;
     }
 
     /** One parameter's decoded value from a raw query string; null when it is not there or is not readable. */
@@ -493,7 +524,9 @@ public class DashboardServer {
      * who can reach that port can read the run and stop it, which the docs say.
      *
      * <p>A request with no Host header passes: every browser sends one, so it is no rebinding.
-     * The name is never resolved; resolving it is the very thing the attacker controls.
+     * (Newer JDKs, seen on 21.0.13, answer 400 to an HTTP/1.1 request with no Host header
+     * themselves, before any handler runs.) The name is never resolved; resolving it is the very
+     * thing the attacker controls.
      */
     static boolean isHostAllowed(boolean loopbackBind, String hostHeader) {
         if (!loopbackBind || hostHeader == null) return true;
@@ -909,8 +942,8 @@ public class DashboardServer {
     /** True when the socket is bound to a loopback address. Meaningful once start() has returned. */
     public boolean isLoopbackBind() { return loopbackBind; }
 
-    /** True when every request must carry the access link's token: one is set and the bind is beyond localhost. */
-    public boolean isAccessLinkRequired() { return accessToken != null && !loopbackBind; }
+    /** True when every request must carry the access link's token: one is set, whatever the bind. */
+    public boolean isAccessLinkRequired() { return accessToken != null; }
 
     // --- SSE Client ---
 

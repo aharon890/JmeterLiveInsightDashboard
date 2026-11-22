@@ -69,10 +69,11 @@ cp target/jmeter-live-dashboard-1.6.3.jar $JMETER_HOME/lib/ext/
 <p><strong>With custom settings:</strong></p>
 <pre><code class="language-bash">jmeter -n -t test.jmx \
   -Jlive.dashboard.bind=0.0.0.0 \
+  -Jlive.dashboard.access.token=generate \
   -Jlive.dashboard.open.browser=false \
   -Jlive.dashboard.idle.timeout=1800
 </code></pre>
-<p>This makes the dashboard reachable from other machines at <code>http://&lt;your-ip&gt;:7566</code>, opens no browser on the load generator (open that URL yourself), and keeps it serving for 30 minutes after the test ends with no tab open. Port, update interval, chart history and hide patterns are saved in the plan; set them in the listener panel.</p>
+<p>This makes the dashboard reachable from other machines through its access link, opens no browser on the load generator, and keeps it serving for 30 minutes after the test ends with no tab open. The link is on the start line of <code>jmeter.log</code>; open it as <code>http://&lt;your-ip&gt;:7566/?token=...</code>. Without <code>live.dashboard.access.token</code> the dashboard is open to anyone who can reach its port. Port, update interval, chart history and hide patterns are saved in the plan; set them in the listener panel.</p>
 <p>See <a href="10-Configuration.md">Configuration</a> for all available properties.</p>
 <h2>Dashboard Layout</h2>
 <p>The dashboard has 4 main areas:</p>
@@ -180,7 +181,7 @@ cp target/jmeter-live-dashboard-1.6.3.jar $JMETER_HOME/lib/ext/
 <ul>
 <li><strong>Runs inside the local JMeter process</strong> — the dashboard server lives in the JMeter process that runs (or controls) the test. A distributed (<code>-R</code>) run is counted correctly across all engines, but the Stop and Shutdown buttons act on the local engine only.</li>
 <li><strong>Not a production monitoring tool</strong> — it is meant for development-time insight, not for long-running CI pipelines or centralized team dashboards. For those use cases, tools like Grafana + InfluxDB are better suited.</li>
-<li><strong>Browser access is local</strong> — by default the server binds to <code>localhost</code>. You can bind to <code>0.0.0.0</code> to allow access from other devices on the same network, but there is no authentication or encryption.</li>
+<li><strong>Browser access is local</strong> — by default the server binds to <code>localhost</code>. You can bind to <code>0.0.0.0</code> to allow access from other devices on the same network. There is no encryption, and no login unless you ask for an access link with <code>live.dashboard.access.token</code> (see Configuration, &quot;Example: Team Sharing&quot;).</li>
 <li><strong>In-memory data</strong> — all metrics are held in memory for the duration of the test. Very long tests with many samplers will consume more heap. The Chart History Limit (<code>live.dashboard.window.max</code>) sets how long the fine-grained chart slots are kept; the 1-minute slots and the totals cover the whole run.</li>
 </ul>
 <p>These are intentional constraints that keep the plugin lightweight, dependency-free, and ready to use in seconds.</p>

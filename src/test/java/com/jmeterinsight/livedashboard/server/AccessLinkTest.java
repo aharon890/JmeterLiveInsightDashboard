@@ -27,13 +27,16 @@ class AccessLinkTest {
         }
     }
 
+    /**
+     * One generated token for the life of this JMeter process. In the JMeter window a second Start begins
+     * a new dashboard; with a new token each time, a teammate's open tab would get 401 at every re-run.
+     */
     @Test
-    void testGenerateMakesANewRandomTokenEachTime() {
+    void testGenerateMakesOneTokenForThisJMeterProcess() {
         AccessLink first = AccessLink.from("generate");
         AccessLink second = AccessLink.from("GENERATE");
         assertTrue(first.token.matches("[0-9a-f]{48}"), "48 hex characters, 192 random bits: " + first.token.length());
-        assertTrue(second.token.matches("[0-9a-f]{48}"));
-        assertNotEquals(first.token, second.token, "two dashboards must not share a generated token");
+        assertEquals(first.token, second.token, "the next run in the same JMeter keeps the link");
         assertFalse(first.declaredNotRequired);
         assertNull(first.note);
     }
@@ -60,6 +63,7 @@ class AccessLinkTest {
             AccessLink link = AccessLink.from(unusable);
             assertNotNull(link.token, "a token is still required for: " + unusable);
             assertTrue(link.token.matches("[0-9a-f]{48}"), "generated, not the value as written: " + unusable);
+            assertEquals(AccessLink.from("generate").token, link.token, "the token 'generate' gives in this JMeter");
             assertNotNull(link.note, "the log must say why for: " + unusable);
             assertTrue(link.note.contains("live.dashboard.access.token"), link.note);
         }
