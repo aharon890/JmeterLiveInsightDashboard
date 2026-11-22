@@ -4,7 +4,7 @@ Real-time browser-based dashboard for monitoring JMeter test execution. Zero inf
 
 ## Quick Start
 
-1. Download `jmeter-live-dashboard-1.6.3.jar` from [GitHub Releases](https://github.com/aharon890/JmeterLiveInsightDashboard/releases)
+1. Download `jmeter-live-dashboard-1.7.0.jar` from [GitHub Releases](https://github.com/aharon890/JmeterLiveInsightDashboard/releases)
 2. Copy it to JMeter's `lib/ext/`, removing any older `jmeter-live-dashboard-*.jar` first
 3. Add **Live Insight Dashboard** listener to your test plan
 4. Run test — dashboard opens automatically at `http://localhost:7566`
