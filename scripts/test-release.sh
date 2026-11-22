@@ -9,7 +9,7 @@
 #    Versions   pom has no -SNAPSHOT; every jar name in the docs is this version
 #    Jar        build_plugin's jar check, on the jar this script builds
 #    Browsers   Playwright @smoke on Firefox and WebKit (the tiers run Chromium)
-#    Java 11    the Docker gate, D1-D15, with JMeter on Java 11, the oldest
+#    Java 11    the Docker gate, D1-D16, with JMeter on Java 11, the oldest
 #               Java the jar is built for (the tiers run Java 17)  [needs Docker]
 #
 #  ~5 min. Nothing here is skipped quietly: an unavailable layer is a FAIL,
@@ -55,12 +55,12 @@ echo ""
 echo "=== [4/4] Docker gate with JMeter on Java 11 ==="
 t0=$(date +%s)
 if ! docker info >/dev/null 2>&1; then
-    record JAVA11 "Docker E2E (D1-D15) on Java 11" FAIL "docker daemon unavailable"
+    record JAVA11 "Docker E2E (D1-D16) on Java 11" FAIL "docker daemon unavailable"
 elif JAVA_IMAGE=eclipse-temurin:11-jre IMAGE_NAME=jmeter-livedashboard-test:5.6.3-java11 \
         bash "$PROJECT_DIR/scripts/run-docker-tests.sh"; then
-    record JAVA11 "Docker E2E (D1-D15) on Java 11" PASS "" "$(( $(date +%s) - t0 ))"
+    record JAVA11 "Docker E2E (D1-D16) on Java 11" PASS "" "$(( $(date +%s) - t0 ))"
 else
-    record JAVA11 "Docker E2E (D1-D15) on Java 11" FAIL "see test-results/docker/jmeter.log" "$(( $(date +%s) - t0 ))"
+    record JAVA11 "Docker E2E (D1-D16) on Java 11" FAIL "see test-results/docker/jmeter.log" "$(( $(date +%s) - t0 ))"
 fi
 
 elapsed=$(( $(date +%s) - started ))

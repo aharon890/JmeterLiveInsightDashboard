@@ -32,7 +32,7 @@ cd tests/playwright && npm test                    # full suite, ~27s
 cd tests/playwright && npm run test:smoke          # the @smoke subset
 cd tests/playwright && npx playwright test live-updates.spec.js   # one spec
 cd tests/playwright && npx playwright test --headed # watch it
-bash scripts/run-docker-tests.sh      # real JMeter + real jar, asserts D1-D15
+bash scripts/run-docker-tests.sh      # real JMeter + real jar, asserts D1-D16
 ./scripts/test-release.sh             # once per release, ~5m: versions, jar, Firefox/WebKit, Java 11
 bash scripts/perf/run-scenario.sh list   # perf harness — on demand only, 10-60 min a scenario
 ```

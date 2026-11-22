@@ -36,6 +36,7 @@ All properties use the `-J` flag on the JMeter command line or can be set in `jm
 | `live.dashboard.port` | `7566` | HTTP server port |
 | `live.dashboard.bind` | `localhost` | Bind address (`localhost` for local only, `0.0.0.0` for all interfaces) |
 | `live.dashboard.open.browser` | `true` | Auto-open browser on test start |
+| `live.dashboard.access.token` | *(not set)* | Meant for a dashboard bound beyond `localhost`. `generate` makes an access link for this JMeter start and prints it on the start line of `jmeter.log`. A token of your own (16 to 128 letters, digits, `-`, `_`, `.`, `~`) gives several runs one link. Once set, the link is asked for on every bind, `localhost` included. `not_required` says an open dashboard is intended. Not set: open, with a warning at start when the bind is beyond `localhost`. A `-J` property only; it is never saved in a plan. See "Example: Team Sharing" |
 
 **Port auto-detection:** If port 7566 is in use, the server tries 7567, 7568, ..., up to 7575. This enables running multiple JMeter instances simultaneously.
 
@@ -116,10 +117,33 @@ This configures:
 ```bash
 jmeter -n -t test.jmx \
   -Jlive.dashboard.bind=0.0.0.0 \
+  -Jlive.dashboard.access.token=generate \
   -Jlive.dashboard.open.browser=false
 ```
 
-Binds to all interfaces so team members can access the dashboard at `http://<your-ip>:7566`. Disables auto-open since the test runner may be headless.
+Binds to all interfaces so team members can open the dashboard from their own machines. Disables auto-open since the test runner may be headless.
+
+**The access link.** With `live.dashboard.access.token=generate`, the start line of `jmeter.log` prints the dashboard's address with a token at its end:
+
+```
+Live Dashboard <version> started: http://localhost:7566/?token=3f9c...e1
+```
+
+Send teammates that link with your machine's name or address in place of `localhost` (`http://<your-ip>:7566/?token=3f9c...e1`). What they see:
+
+- **With the link:** the dashboard. Opened once, their browser remembers it, and the plain address `http://<your-ip>:7566` works from then on in that browser.
+- **Without the link:** the answer "This dashboard needs its access link". They cannot read the run or stop it.
+- **A script** (curl, a pipeline) sends the token in a header: `curl -H "Authorization: token 3f9c...e1" http://<your-ip>:7566/api/status`.
+
+Each JMeter start makes a new token; runs started one after another in the same JMeter window keep it. To keep one link over several JMeter starts, for example a script that runs plans one after another on the same port, give every run the same token of your own: `-Jlive.dashboard.access.token=<16 to 128 letters, digits, - _ . ~>`. A token of your own is written to every run's `jmeter.log`, on the start line: whoever can read the log of one run has the link for every run that reuses the token.
+
+A token that is set is asked for on every bind, `localhost` included: a dashboard on `localhost` behind a reverse proxy, an SSH tunnel or a port-forward is reached from other machines too. Without the property nothing changes on `localhost`. The token keeps out people who can reach the port; it is not encryption, so it does not protect against someone who can read the network traffic.
+
+Without the property a dashboard bound beyond `localhost` is open to anyone who can reach its port, and `jmeter.log` says so at start. `-Jlive.dashboard.access.token=not_required` states that this is intended and silences the warning.
+
+**In a pipeline.** An empty value counts as not set, because JMeter itself drops a property given as `-Jname=`. So `-Jlive.dashboard.access.token="$DASHBOARD_TOKEN"` with the variable unset starts an open dashboard. Write `-Jlive.dashboard.access.token="${DASHBOARD_TOKEN:-generate}"` to fall back to a generated link.
+
+**Several dashboards on one machine.** The browser remembers each link under the port of the address you opened, so two JMeter containers published on ports 7566 and 7567 keep their own links, and so do two tunnels.
 
 ## Example: CI/CD Pipeline
 
@@ -167,7 +191,7 @@ in the panel, or remove the property from the `.jmx`.
 
 - Add the Live Insight Dashboard listener to your test plan, then tune behavior with `-J` properties per run — but only for settings the plan has **not** already pinned. A value saved in the element wins over `-J` (see Property Precedence above). Clearing the Port or Auto-hide patterns field hands control back to `-J`; an emptied Update Interval or Chart History Limit field is not saved.
 - **`live.dashboard.bind` and `live.dashboard.open.browser` can always be driven by `-J`.** Both describe the machine rather than the test, and the GUI writes both into every plan it saves, so for these two the `-J` value wins over the saved element value. `-Jlive.dashboard.bind=0.0.0.0` makes the dashboard reachable from other machines regardless of what the plan has saved.
-- Set `bind=0.0.0.0` to share the dashboard with team members on the same network. There is no login: anyone who can reach that port can read the run and stop it.
+- Set `bind=0.0.0.0` to share the dashboard with team members on the same network, and add `live.dashboard.access.token=generate` so that only someone with the link from `jmeter.log` can read the run and stop it. Without it there is no login: anyone who can reach that port can do both.
 - On the default `localhost` bind the dashboard answers only to `localhost`, `127.0.0.1` and `[::1]`, on any port, so an SSH tunnel works. Any other host name gets a 403; a reverse proxy in front of it has to send `Host: localhost`.
 - Lower the update interval to 1 second for more responsive charts during short tests.
 - Increase `window.max` to keep 2-second detail for more than the last hour. Older parts of the run are charted at 1-minute resolution either way.
