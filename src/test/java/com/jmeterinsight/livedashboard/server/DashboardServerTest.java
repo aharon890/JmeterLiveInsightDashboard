@@ -1253,4 +1253,184 @@ class DashboardServerTest {
         }
         return rt.totalMemory() - rt.freeMemory();
     }
+
+    // --- Access link (a dashboard bound beyond localhost) ---
+
+    private static final String ACCESS_TOKEN_IN_TESTS = "the-link-of-this-test-run-0123456789";
+
+    /** Bound to every interface, as a dashboard that teammates or a pipeline open from another machine. */
+    private DashboardServer startServerBeyondLocalhost(LiveAggregator agg, int port, String accessToken) throws IOException {
+        DashboardServer srv = new DashboardServer(port, "0.0.0.0", agg, "Integration Test", 600, accessToken);
+        srv.start();
+        return srv;
+    }
+
+    private static String headerOf(String head, String name) {
+        for (String line : head.split("\n")) {
+            if (line.regionMatches(true, 0, name + ":", 0, name.length() + 1)) return line.substring(name.length() + 1).trim();
+        }
+        return null;
+    }
+
+    /**
+     * Bound beyond localhost, anyone who could reach the port could read the run (sampler names, URLs,
+     * error messages) and stop JMeter. With a token set, a request that does not carry it is refused on
+     * every path, the stop endpoints included even with their own valid stop token.
+     */
+    @Test
+    void testWithoutItsAccessLinkADashboardBeyondLocalhostRefusesEveryPath() throws Exception {
+        int port = findFreePort();
+        server = startServerBeyondLocalhost(createPopulatedAggregator(), port, ACCESS_TOKEN_IN_TESTS);
+        String host = "loadgen01:" + port;
+
+        assertTrue(server.isAccessLinkRequired());
+        for (String path : new String[]{"/", "/index.html", "/echarts.min.js", "/api/status",
+                "/api/config", "/api/history", "/api/events"}) {
+            String head = rawRequest(port, "GET", path, host);
+            assertEquals(401, statusOf(head), "GET " + path + " without the access link must be refused");
+        }
+        for (String path : new String[]{"/api/stop", "/api/stop-now"}) {
+            assertEquals(401, statusOf(rawRequest(port, "POST", path, host, "X-Stop-Token: " + server.getStopToken())),
+                    "POST " + path + " without the access link must be refused, stop token or not");
+        }
+        // A wrong token, in each of the three places a token can travel.
+        assertEquals(401, statusOf(rawRequest(port, "GET", "/api/status?token=not-the-token", host)));
+        assertEquals(401, statusOf(rawRequest(port, "GET", "/api/status", host, "Authorization: token not-the-token")));
+        assertEquals(401, statusOf(rawRequest(port, "GET", "/api/status", host,
+                "Cookie: " + server.accessCookieName() + "=not-the-token")));
+    }
+
+    /**
+     * The way Jupyter does it: the link carries the token once. Opening it stores the token in a cookie
+     * and shows the page at its plain address, so the token is not left in the address bar, the history
+     * or a link someone copies from there.
+     */
+    @Test
+    void testTheAccessLinkSetsACookieAndShowsThePageAtItsPlainAddress() throws Exception {
+        int port = findFreePort();
+        server = startServerBeyondLocalhost(createPopulatedAggregator(), port, ACCESS_TOKEN_IN_TESTS);
+        String host = "loadgen01:" + port;
+
+        String link = rawRequest(port, "GET", "/?token=" + ACCESS_TOKEN_IN_TESTS, host);
+        assertEquals(302, statusOf(link), "the link redirects to the plain address");
+        assertEquals("/", headerOf(link, "Location"));
+        String cookie = headerOf(link, "Set-Cookie");
+        assertNotNull(cookie, "the link must set the cookie");
+        assertTrue(cookie.startsWith(server.accessCookieName() + "=" + ACCESS_TOKEN_IN_TESTS + ";"), cookie);
+        assertTrue(cookie.contains("HttpOnly"), "a script in the page must not be able to read it: " + cookie);
+        assertTrue(cookie.contains("SameSite=Lax"), "another site's page must not send it with its requests: " + cookie);
+        assertTrue(cookie.contains("Path=/"), cookie);
+
+        // Any other parameter of the link survives the redirect; only the token is taken out.
+        String withMore = rawRequest(port, "GET", "/index.html?tab=errors&token=" + ACCESS_TOKEN_IN_TESTS + "&x=1", host);
+        assertEquals("/index.html?tab=errors&x=1", headerOf(withMore, "Location"));
+
+        // From now on the plain address works in that browser: the page, its script, the data, the live stream.
+        String carried = "Cookie: other=1; " + server.accessCookieName() + "=" + ACCESS_TOKEN_IN_TESTS;
+        for (String path : new String[]{"/", "/echarts.min.js", "/api/status", "/api/config", "/api/history", "/api/events"}) {
+            assertEquals(200, statusOf(rawRequest(port, "GET", path, host, carried)),
+                    "GET " + path + " with the link's cookie must be served");
+        }
+    }
+
+    /** The Stop buttons keep their own secret, and work for a browser that came in through the link. */
+    @Test
+    void testStopWorksWithTheLinksCookieAndStillNeedsItsOwnToken() throws Exception {
+        int port = findFreePort();
+        server = startServerBeyondLocalhost(createPopulatedAggregator(), port, ACCESS_TOKEN_IN_TESTS);
+        String host = "loadgen01:" + port;
+        String carried = "Cookie: " + server.accessCookieName() + "=" + ACCESS_TOKEN_IN_TESTS;
+
+        assertEquals(403, statusOf(rawRequest(port, "POST", "/api/stop", host, carried)),
+                "the access link alone does not stop the run: the page's stop token is still asked for");
+        assertEquals(200, statusOf(rawRequest(port, "POST", "/api/stop", host, carried,
+                "X-Stop-Token: " + server.getStopToken())));
+    }
+
+    /** A script has no cookie jar to begin with: it sends the token in a header, or in the address. */
+    @Test
+    void testAScriptSendsTheTokenInAHeaderOrInTheAddress() throws Exception {
+        int port = findFreePort();
+        server = startServerBeyondLocalhost(createPopulatedAggregator(), port, ACCESS_TOKEN_IN_TESTS);
+        String host = "loadgen01:" + port;
+
+        assertEquals(200, statusOf(rawRequest(port, "GET", "/api/status", host, "Authorization: token " + ACCESS_TOKEN_IN_TESTS)));
+        assertEquals(200, statusOf(rawRequest(port, "GET", "/api/status", host, "Authorization: Token " + ACCESS_TOKEN_IN_TESTS)));
+        // In the address an API call is answered where it is, not redirected: curl follows no redirect by default.
+        String inAddress = rawRequest(port, "GET", "/api/status?token=" + ACCESS_TOKEN_IN_TESTS, host);
+        assertEquals(200, statusOf(inAddress));
+        assertNotNull(headerOf(inAddress, "Set-Cookie"), "a browser that opened an API address is remembered too");
+        // One header form only.
+        assertEquals(401, statusOf(rawRequest(port, "GET", "/api/status", host, "Authorization: Bearer " + ACCESS_TOKEN_IN_TESTS)));
+        assertEquals(401, statusOf(rawRequest(port, "GET", "/api/status", host, "X-Access-Token: " + ACCESS_TOKEN_IN_TESTS)));
+    }
+
+    /**
+     * A browser keeps cookies per host, not per port. Two dashboards on one machine (ports 7566 and 7567)
+     * would overwrite each other's cookie under one name, so the name carries the port, and another
+     * dashboard's cookie opens nothing here.
+     */
+    @Test
+    void testAnotherDashboardsCookieOpensNothing() throws Exception {
+        int port = findFreePort();
+        server = startServerBeyondLocalhost(createPopulatedAggregator(), port, ACCESS_TOKEN_IN_TESTS);
+        String host = "loadgen01:" + port;
+
+        assertEquals("ld_access_" + port, server.accessCookieName());
+        assertEquals(401, statusOf(rawRequest(port, "GET", "/api/status", host,
+                "Cookie: ld_access_" + (port + 1) + "=" + ACCESS_TOKEN_IN_TESTS)));
+        assertEquals(401, statusOf(rawRequest(port, "GET", "/api/status", host, "Cookie: ld_access=" + ACCESS_TOKEN_IN_TESTS)));
+    }
+
+    /** On localhost nothing changes: the Host check already keeps other machines and other sites out. */
+    @Test
+    void testADashboardOnLocalhostIsNeverAskedForTheLink() throws Exception {
+        int port = findFreePort();
+        server = new DashboardServer(port, "127.0.0.1", createPopulatedAggregator(), "Integration Test", 600, ACCESS_TOKEN_IN_TESTS);
+        server.start();
+
+        assertFalse(server.isAccessLinkRequired());
+        assertTrue(server.isLoopbackBind());
+        for (String path : new String[]{"/", "/api/status", "/api/events"}) {
+            assertEquals(200, statusOf(rawRequest(port, "GET", path, "localhost:" + port)), "GET " + path);
+        }
+    }
+
+    /** With no token set a dashboard beyond localhost behaves as it always did. The listener warns at start. */
+    @Test
+    void testWithNoTokenSetADashboardBeyondLocalhostIsOpenAsBefore() throws Exception {
+        int port = findFreePort();
+        server = startServerBeyondLocalhost(createPopulatedAggregator(), port, null);
+
+        assertFalse(server.isAccessLinkRequired());
+        assertFalse(server.isLoopbackBind());
+        assertEquals(200, statusOf(rawRequest(port, "GET", "/api/status", "loadgen01:" + port)));
+        assertEquals(200, statusOf(rawRequest(port, "GET", "/", "loadgen01:" + port)));
+    }
+
+    @Test
+    void testTheTokenIsReadFromTheAddressTheHeaderAndTheCookie() throws Exception {
+        assertEquals("abc", DashboardServer.queryParameter("token=abc", "token"));
+        assertEquals("abc", DashboardServer.queryParameter("tab=errors&token=abc&x=1", "token"));
+        assertEquals("a b~c", DashboardServer.queryParameter("token=a%20b~c", "token"));
+        assertEquals("", DashboardServer.queryParameter("token", "token"));
+        assertNull(DashboardServer.queryParameter("xtoken=abc&tokens=abc", "token"));
+        assertNull(DashboardServer.queryParameter(null, "token"));
+        assertNull(DashboardServer.queryParameter("token=%zz", "token"), "a broken escape is no token");
+
+        assertEquals("abc", DashboardServer.authorizationToken("token abc"));
+        assertEquals("abc", DashboardServer.authorizationToken("  TOKEN   abc  "));
+        assertNull(DashboardServer.authorizationToken("Bearer abc"));
+        assertNull(DashboardServer.authorizationToken("tokenabc"));
+        assertNull(DashboardServer.authorizationToken(null));
+
+        assertEquals("abc", DashboardServer.cookieValue(List.of("a=1; ld_access_7566=abc; b=2"), "ld_access_7566"));
+        assertEquals("abc", DashboardServer.cookieValue(List.of("a=1", "ld_access_7566=abc"), "ld_access_7566"));
+        assertNull(DashboardServer.cookieValue(List.of("xld_access_7566=abc; ld_access_75660=abc"), "ld_access_7566"));
+        assertNull(DashboardServer.cookieValue(null, "ld_access_7566"));
+
+        assertEquals("/", DashboardServer.withoutParameter(new URI("/?token=abc"), "token"));
+        assertEquals("/index.html?tab=errors&x=1", DashboardServer.withoutParameter(new URI("/index.html?tab=errors&token=abc&x=1"), "token"));
+        assertEquals("/?a=1", DashboardServer.withoutParameter(new URI("/?a=1"), "token"));
+    }
 }

@@ -103,7 +103,7 @@ mvn test -Dtest=DashboardServerTest                # one class
 cd tests/playwright && npm run test:smoke          # ~7s
 cd tests/playwright && npm test                    # ~27s
 cd tests/playwright && npx playwright test live-updates.spec.js
-bash scripts/run-docker-tests.sh                   # D1-D15, ~2m
+bash scripts/run-docker-tests.sh                   # D1-D16, ~2.5m
 ./scripts/test-release.sh                          # the release check, ~5m
 cd tests/playwright && PW_BROWSERS=firefox,webkit npx playwright test --grep @smoke
 ```
@@ -139,12 +139,12 @@ drift had three different totals in three files. Everything else links here.
 
 | Layer | Count | Command |
 |---|---|---|
-| Java, fast tier (smoke) | 165 | `mvn test -DexcludedGroups=slow` |
-| Java, full (regression) | 171 across 9 classes | `mvn test` |
+| Java, fast tier (smoke) | 178 | `mvn test -DexcludedGroups=slow` |
+| Java, full (regression) | 184 across 10 classes | `mvn test` |
 | Playwright `@smoke` | 29 | `npm run test:smoke` |
 | Playwright full | 210 across 25 specs | `npm test` |
-| Docker E2E | 18 checks, D1–D15 (with D1b, D2a, D2b, D3b) | `bash scripts/run-docker-tests.sh` |
-| **Total automated** | **381** | both tiers |
+| Docker E2E | 23 checks, D1–D16 (with D1b, D2a, D2b, D3b, D16a–e) | `bash scripts/run-docker-tests.sh` |
+| **Total automated** | **399** | both tiers |
 
 Measured 2026-11-21. Rather than trusting the table, regenerate it — the
 breakdown per class and per spec is one command each, which is why neither is
@@ -180,7 +180,7 @@ If you add tests, update this table and nothing else.
   fixed runs and on seeded random ones.
 - **Docker E2E** (`scripts/run-docker-tests.sh`) — the only layer with real
   JMeter and the real jar: runs `docker-smoke-test.jmx` in a container and
-  asserts D1–D15 against the live dashboard.
+  asserts D1–D16 against the live dashboard.
   - **The plan:** two thread groups simulate an API. A third feeds the paths a
     real run has to get right:
     - a transaction that generates a parent sample, so its steps arrive as
@@ -255,6 +255,14 @@ If you add tests, update this table and nothing else.
     Shown to fail on the pre-fix page, whose points were groups counted from the
     window's start: 578 values differed. Needs Node and the Playwright install in
     `tests/playwright`.
+  - **D16** is the access link (`live.dashboard.access.token`), in five checks.
+    D16a: the first run, bound to `0.0.0.0` with no token, warns in `jmeter.log` that
+    it is open. A second short run asks for `generate`. D16b: its start line prints an
+    address ending in `?token=` and 48 hex characters. D16c: without the link the page
+    and `/api/status` answer 401. D16d: the link answers 302 and sets a cookie, and the
+    plain address then answers 200 with it. D16e: a script's `Authorization: token`
+    header is accepted. Only real JMeter shows the `-J` property, the log line and the
+    refusal together.
 
 ## Design notes
 

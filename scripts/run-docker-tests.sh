@@ -350,6 +350,87 @@ else
 fi
 
 # =============================================================================
+#  The access link: live.dashboard.access.token (D16a-e)
+#
+#  Bound beyond localhost a dashboard is open to whoever can reach its port, unless it is
+#  given a token. The run above had none, so its log must carry the warning (D16a). A
+#  second, short run asks for a generated token. Only real JMeter shows the three parts
+#  together: the property read from -J, the link on the start line, and the refusal.
+#
+#  Runs after D5, so the first container has exited and DASHBOARD_PORT is free.
+# =============================================================================
+if grep -q "has no access link" "$DOCKER_RESULTS/jmeter.log" 2>/dev/null; then
+    record D16a "an open dashboard beyond localhost warns at start" PASS
+else
+    record D16a "an open dashboard beyond localhost warns at start" FAIL "no warning in jmeter.log"
+fi
+
+echo ""
+echo "[DOCKER] Access link: $SMOKE_PLAN with live.dashboard.access.token=generate ..."
+ACCESS_RESULTS="$DOCKER_RESULTS/access-link"
+mkdir -p "$ACCESS_RESULTS"
+rm -f "$ACCESS_RESULTS/results.jtl" "$ACCESS_RESULTS/jmeter.log" "$ACCESS_RESULTS/cookies.txt"
+docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+docker_run run -d --name "$CONTAINER_NAME" \
+    -p "${DASHBOARD_PORT}:7566" \
+    -v "$(docker_host_path "$PLUGIN_JAR"):$CONTAINER_EXT/$(basename "$PLUGIN_JAR")" \
+    -v "$(docker_host_path "$TEST_PLANS/$SMOKE_PLAN"):/test/$SMOKE_PLAN" \
+    -v "$(docker_host_path "$ACCESS_RESULTS"):/results" \
+    "$IMAGE_NAME" \
+    -n -t "/test/$SMOKE_PLAN" \
+    -l /results/results.jtl \
+    -j /results/jmeter.log \
+    -Jlive.dashboard.bind=0.0.0.0 \
+    -Jlive.dashboard.open.browser=false \
+    -Jlive.dashboard.idle.timeout=5 \
+    -Jlive.dashboard.access.token=generate \
+    >/dev/null || { echo "[DOCKER] container start FAILED" >&2; exit 1; }
+
+# The link is where a teammate or a pipeline takes it from: the start line of jmeter.log.
+# /api/status cannot be polled here: without the link it is refused, which is the point.
+access_link=""
+for _ in $(seq 1 45); do
+    access_link="$(sed -n 's/.*Live Dashboard .* started: \(http[^[:space:]]*\).*/\1/p' "$ACCESS_RESULTS/jmeter.log" 2>/dev/null | head -1)"
+    [[ -n "$access_link" ]] && break
+    sleep 1
+done
+access_token="${access_link##*token=}"
+access_code() { curl -s -o /dev/null -w '%{http_code}' "$@" || true; }
+
+if [[ "$access_link" =~ ^http://localhost:7566/\?token=[0-9a-f]{48}$ ]]; then
+    record D16b "the start line prints the access link" PASS
+else
+    record D16b "the start line prints the access link" FAIL "start line address: ${access_link:-none in 45s}"
+    echo "--- container log tail ---"; docker logs --tail 30 "$CONTAINER_NAME" 2>&1 || true
+fi
+
+without_api="$(access_code "http://localhost:${DASHBOARD_PORT}/api/status")"
+without_page="$(access_code "http://localhost:${DASHBOARD_PORT}/")"
+if [[ "$without_api" == "401" && "$without_page" == "401" ]]; then
+    record D16c "without the link the page and the data are refused" PASS
+else
+    record D16c "without the link the page and the data are refused" FAIL "/api/status HTTP ${without_api:-none}, / HTTP ${without_page:-none}"
+fi
+
+# A browser: the link once, then the plain address with the cookie it set.
+opened="$(access_code -c "$ACCESS_RESULTS/cookies.txt" "http://localhost:${DASHBOARD_PORT}/?token=${access_token}")"
+remembered="$(access_code -b "$ACCESS_RESULTS/cookies.txt" "http://localhost:${DASHBOARD_PORT}/api/status")"
+if [[ "$opened" == "302" && "$remembered" == "200" ]]; then
+    record D16d "the link sets a cookie, and the plain address then answers" PASS
+else
+    record D16d "the link sets a cookie, and the plain address then answers" FAIL "link HTTP ${opened:-none}, then /api/status HTTP ${remembered:-none}"
+fi
+
+# A script: the token in a header.
+scripted="$(access_code -H "Authorization: token ${access_token}" "http://localhost:${DASHBOARD_PORT}/api/status")"
+if [[ "$scripted" == "200" ]]; then
+    record D16e "a script's Authorization header is accepted" PASS
+else
+    record D16e "a script's Authorization header is accepted" FAIL "HTTP ${scripted:-none}"
+fi
+docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+# =============================================================================
 #  Distributed run: 2 engines + controller (D9-D11)
 #
 #  The dashboard lives on the controller, where JMeter hands EACH engine its own

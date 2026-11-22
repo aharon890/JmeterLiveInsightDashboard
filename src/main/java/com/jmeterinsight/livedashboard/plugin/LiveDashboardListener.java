@@ -64,6 +64,8 @@ public class LiveDashboardListener extends ResultCollector {
     public static final String APDEX_THRESHOLD = "live.dashboard.apdex.threshold";
     public static final String IDLE_TIMEOUT = "live.dashboard.idle.timeout";
     public static final String ENABLED = "live.dashboard.enabled";
+    /** The access link of a dashboard bound beyond localhost: a token of your own, "generate" or "not_required". */
+    public static final String ACCESS_TOKEN = "live.dashboard.access.token";
 
     // JMeter's own HTML-report Apdex thresholds, set in bin/jmeter.properties and
     // overridable like any JMeter property. The dashboard's Apdex follows them, so
@@ -286,15 +288,31 @@ public class LiveDashboardListener extends ResultCollector {
             // lost, silently. A bad hide pattern did exactly that once.
             aggregator = new LiveAggregator(updateInterval, maxRetention, maxErrors,
                     slaP95, slaErrorRate, apdex[0], apdex[1], hidePatterns, System::currentTimeMillis);
-            server = new DashboardServer(port, bind, aggregator, testName, idleTimeout);
+            // Read from the JMeter property only, like live.dashboard.bind's -J form: it describes
+            // the machine and the run, not the test, and a secret does not belong in a saved plan.
+            com.jmeterinsight.livedashboard.server.AccessLink access =
+                    com.jmeterinsight.livedashboard.server.AccessLink.from(JMeterUtils.getProperty(ACCESS_TOKEN));
+            if (access.note != null) {
+                log.warn(access.note);
+            }
+            server = new DashboardServer(port, bind, aggregator, testName, idleTimeout, access.token);
             server.start();
 
-            String url = "http://" + ("0.0.0.0".equals(bind) ? "localhost" : bind) + ":" + server.getPort();
+            // With an access link the address carries the token, as Jupyter prints its own: this
+            // line in jmeter.log is where a teammate or a pipeline takes the link from.
+            String url = "http://" + ("0.0.0.0".equals(bind) ? "localhost" : bind) + ":" + server.getPort()
+                    + (server.isAccessLinkRequired() ? "/?token=" + access.token : "");
 
             log.info("========================================================");
             log.info("  Live Dashboard {} started: {}", DashboardServer.PLUGIN_VERSION, url);
             log.info("  Open this URL in your browser to monitor the test.");
             log.info("========================================================");
+            if (!server.isLoopbackBind() && access.token == null && !access.declaredNotRequired) {
+                log.warn("The dashboard is bound to {} and has no access link: anyone who can reach port {} can read "
+                        + "the run and stop JMeter. Start JMeter with -J{}=generate to require a link (it is then "
+                        + "printed on the line above), or with -J{}=not_required to say an open dashboard is intended.",
+                        bind, server.getPort(), ACCESS_TOKEN, ACCESS_TOKEN);
+            }
 
             if (shouldOpenBrowser()) {
                 openBrowser(url);

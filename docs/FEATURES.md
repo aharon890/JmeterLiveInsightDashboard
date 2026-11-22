@@ -510,6 +510,7 @@ See [Configuration](Tutorial/10-Configuration.md) for the full precedence rules.
 | `live.dashboard.enabled` | `true` | Enable or disable the dashboard listener entirely |
 | `live.dashboard.port` | `7566` | HTTP server port (auto-detects next available port up to 7575 if in use) |
 | `live.dashboard.bind` | `localhost` | Bind address (use `0.0.0.0` for remote access) |
+| `live.dashboard.access.token` | *(not set)* | Access link for a dashboard bound beyond `localhost`: `generate`, a token of your own, or `not_required`. Not set: open, with a warning at start. `-J` only. See Tutorial 10, "Example: Team Sharing" |
 | `live.dashboard.update.interval` | `2` | Data push interval in seconds |
 | `live.dashboard.open.browser` | `true` | Auto-open the dashboard in the default browser on test start |
 

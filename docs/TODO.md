@@ -198,12 +198,20 @@ optimize next. Each scenario writes its report under `test-results/perf/`.
     `Host: localhost`. There is no `live.dashboard.allowed.hosts` opt-in; nobody has asked
     for one.
 - Still open:
-  - **A bind beyond loopback has no Host check and no login.** On `0.0.0.0` or a named
-    interface the dashboard is reached by whatever name the network gives the machine, so
-    `http://loadgen01:7566` keeps working, and anyone who can reach that port can read and
-    stop the run; the docs say so. An internet attacker cannot reach a load generator on a
-    private network directly, but can through the operator's browser. To research: a list
-    of allowed names, or a token in the URL as Jupyter does.
+  - **A bind beyond loopback has no Host check, and a login only when asked for.** On
+    `0.0.0.0` or a named interface the dashboard is reached by whatever name the network
+    gives the machine, so `http://loadgen01:7566` keeps working.
+    - Since 2026-11-22 `live.dashboard.access.token` gives it an access link, the way
+      Jupyter does it: the start line of `jmeter.log` prints the address with `?token=...`,
+      opening it once sets a cookie, a script sends `Authorization: token <token>`, and a
+      request without the token gets 401 on every path. Docker checks D16a-e pin it
+      against real JMeter.
+    - Still open: it is off unless asked for. Not set, anyone who can reach the port can
+      read and stop the run, and the log warns at start. Making the link the default
+      beyond localhost waits until the tools that open dashboards pass the token (perf
+      hub's Live link, the test beds' runners and Jenkins links).
+    - The token is not encryption. HTTPS is not planned: the plugin embeds the JDK's
+      plain HTTP server.
   - Not verified: the browser half. Chrome's Local Network Access should block a public
     page reaching loopback, or ask first; Firefox and Safari were not checked.
 - Two more items from the same review, recorded as the review states them.

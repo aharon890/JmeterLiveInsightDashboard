@@ -95,16 +95,31 @@ public class DashboardServer {
     private final java.util.concurrent.atomic.AtomicBoolean foreignHostLogged =
             new java.util.concurrent.atomic.AtomicBoolean();
 
+    // The token of the access link; null when none is asked for (see accessChecked).
+    private final String accessToken;
+    private final java.util.concurrent.atomic.AtomicBoolean noAccessLinkLogged =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
     public DashboardServer(int port, String bind, LiveAggregator aggregator, String testName) {
         this(port, bind, aggregator, testName, 600);
     }
 
     public DashboardServer(int port, String bind, LiveAggregator aggregator, String testName, int idleTimeoutSeconds) {
+        this(port, bind, aggregator, testName, idleTimeoutSeconds, null);
+    }
+
+    /**
+     * @param accessToken the token of the dashboard's access link (see accessChecked), or null for none.
+     *                    It is asked for only when the dashboard is bound beyond localhost.
+     */
+    public DashboardServer(int port, String bind, LiveAggregator aggregator, String testName, int idleTimeoutSeconds,
+                           String accessToken) {
         this.port = port;
         this.bind = bind;
         this.aggregator = aggregator;
         this.testName = testName;
         this.idleTimeoutSeconds = idleTimeoutSeconds;
+        this.accessToken = accessToken == null || accessToken.isEmpty() ? null : accessToken;
     }
 
     public void start() throws IOException {
@@ -143,13 +158,13 @@ public class DashboardServer {
         boolean started = false;
         try {
             loopbackBind = httpServer.getAddress().getAddress().isLoopbackAddress();
-            httpServer.createContext("/", hostChecked(this::handleDashboard));
-            httpServer.createContext("/api/events", hostChecked(this::handleSseEvents));
-            httpServer.createContext("/api/status", hostChecked(this::handleStatus));
-            httpServer.createContext("/api/config", hostChecked(this::handleConfig));
-            httpServer.createContext("/api/history", hostChecked(this::handleHistory));
-            httpServer.createContext("/api/stop", hostChecked(this::handleStop));
-            httpServer.createContext("/api/stop-now", hostChecked(this::handleStopNow));
+            httpServer.createContext("/", hostChecked(accessChecked(this::handleDashboard)));
+            httpServer.createContext("/api/events", hostChecked(accessChecked(this::handleSseEvents)));
+            httpServer.createContext("/api/status", hostChecked(accessChecked(this::handleStatus)));
+            httpServer.createContext("/api/config", hostChecked(accessChecked(this::handleConfig)));
+            httpServer.createContext("/api/history", hostChecked(accessChecked(this::handleHistory)));
+            httpServer.createContext("/api/stop", hostChecked(accessChecked(this::handleStop)));
+            httpServer.createContext("/api/stop-now", hostChecked(accessChecked(this::handleStopNow)));
 
             httpServer.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "LiveDashboard-HTTP");
@@ -297,6 +312,137 @@ public class DashboardServer {
 
     private void onClientDisconnected() {
         scheduleIdleShutdownIfNeeded(); // Last client gone? Start countdown
+    }
+
+    // --- Access link (a dashboard bound beyond localhost) ---
+
+    static final String ACCESS_LINK_NEEDED = "This dashboard needs its access link.\n\n"
+            + "It is bound beyond localhost, so it answers only to someone who has the link from the "
+            + "\"Live Dashboard ... started:\" line of jmeter.log (the link ends in ?token=...). "
+            + "Open that link once and this browser remembers it. "
+            + "A script sends the header \"Authorization: token <the token>\".\n";
+
+    /**
+     * Wraps a handler so that a dashboard bound beyond localhost, with a token set
+     * (live.dashboard.access.token), answers only to someone who holds its access link.
+     *
+     * <p>Bound to 0.0.0.0 or to a named interface, anyone who could reach the port could read the
+     * run (sampler names, often internal URLs, and error messages) and stop JMeter, which then
+     * exits with code 0. This is the way Jupyter guards its server: the start line in jmeter.log
+     * prints a link that ends in ?token=...; opening it once stores the token in a cookie, and from
+     * then on the plain address works in that browser. A script sends "Authorization: token
+     * &lt;token&gt;" instead. The live stream is an EventSource, which cannot send a header, so for
+     * a browser the cookie is the only carrier.
+     *
+     * <p>A dashboard bound to localhost is never asked: the Host check already keeps other
+     * machines and other sites out, and nothing about a local run changes. The token is not
+     * encryption: it keeps out whoever can reach the port, not whoever can read the network.
+     */
+    private com.sun.net.httpserver.HttpHandler accessChecked(com.sun.net.httpserver.HttpHandler handler) {
+        return exchange -> {
+            if (!isAccessLinkRequired()) {
+                handler.handle(exchange);
+                return;
+            }
+            java.net.URI uri = exchange.getRequestURI();
+            if (tokenMatches(queryParameter(uri.getRawQuery(), "token"))) {
+                exchange.getResponseHeaders().add("Set-Cookie",
+                        accessCookieName() + "=" + accessToken + "; Path=/; HttpOnly; SameSite=Lax");
+                String path = uri.getPath();
+                if ("GET".equals(exchange.getRequestMethod()) && ("/".equals(path) || "/index.html".equals(path))) {
+                    // The link itself: show the page at its plain address, so the token is not left
+                    // in the address bar, the history, or a link someone copies from there. Only the
+                    // page redirects (to one of two fixed paths, never to a path taken from the
+                    // request): an API call is answered where it is, because curl follows no redirect.
+                    exchange.getResponseHeaders().set("Location", withoutParameter(uri, "token"));
+                    exchange.getResponseHeaders().set("Cache-Control", "no-store");
+                    exchange.getResponseHeaders().set("Referrer-Policy", "no-referrer");
+                    exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                    return;
+                }
+                handler.handle(exchange);
+                return;
+            }
+            if (tokenMatches(authorizationToken(exchange.getRequestHeaders().getFirst("Authorization")))
+                    || tokenMatches(cookieValue(exchange.getRequestHeaders().get("Cookie"), accessCookieName()))) {
+                handler.handle(exchange);
+                return;
+            }
+            // Once at WARN: a scanner on the network can repeat the request as fast as it likes.
+            if (noAccessLinkLogged.compareAndSet(false, true)) {
+                log.warn("Refused a request from {} that did not carry the dashboard's access link. The link is on "
+                        + "the \"Live Dashboard ... started:\" line of jmeter.log. Further refusals are logged at DEBUG.",
+                        exchange.getRemoteAddress());
+            } else {
+                log.debug("Refused a request from {} without the access link", exchange.getRemoteAddress());
+            }
+            exchange.getResponseHeaders().set("WWW-Authenticate", "Token");
+            exchange.getResponseHeaders().set("Cache-Control", "no-store");
+            sendResponse(exchange, 401, "text/plain; charset=utf-8", ACCESS_LINK_NEEDED);
+        };
+    }
+
+    /** Compared in constant time, so the answer's timing does not tell how much of a guess was right. */
+    private boolean tokenMatches(String candidate) {
+        return candidate != null && java.security.MessageDigest.isEqual(
+                candidate.getBytes(StandardCharsets.UTF_8), accessToken.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * The cookie the access link sets. Its name carries the port: a browser keeps cookies per host,
+     * not per port, so two dashboards on one machine would overwrite each other's under one name.
+     */
+    String accessCookieName() {
+        return "ld_access_" + port;
+    }
+
+    /** One parameter's decoded value from a raw query string; null when it is not there or is not readable. */
+    static String queryParameter(String rawQuery, String name) {
+        if (rawQuery == null) return null;
+        for (String pair : rawQuery.split("&")) {
+            int eq = pair.indexOf('=');
+            if (!name.equals(eq < 0 ? pair : pair.substring(0, eq))) continue;
+            try {
+                return java.net.URLDecoder.decode(eq < 0 ? "" : pair.substring(eq + 1), StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException brokenEscape) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /** The request's path and query with one parameter taken out: where the access link redirects to. */
+    static String withoutParameter(java.net.URI uri, String name) {
+        String path = uri.getRawPath() == null || uri.getRawPath().isEmpty() ? "/" : uri.getRawPath();
+        StringBuilder rest = new StringBuilder();
+        if (uri.getRawQuery() != null) {
+            for (String pair : uri.getRawQuery().split("&")) {
+                int eq = pair.indexOf('=');
+                if (pair.isEmpty() || name.equals(eq < 0 ? pair : pair.substring(0, eq))) continue;
+                rest.append(rest.length() == 0 ? '?' : '&').append(pair);
+            }
+        }
+        return path + rest;
+    }
+
+    /** "token abc" gives "abc", the word in any case, as Jupyter reads the header. Anything else gives null. */
+    static String authorizationToken(String header) {
+        if (header == null) return null;
+        String value = header.trim();
+        return value.regionMatches(true, 0, "token ", 0, 6) ? value.substring(6).trim() : null;
+    }
+
+    /** A cookie's value from the request's Cookie headers; null when it is not there. */
+    static String cookieValue(java.util.List<String> cookieHeaders, String name) {
+        if (cookieHeaders == null) return null;
+        for (String header : cookieHeaders) {
+            for (String pair : header.split(";")) {
+                int eq = pair.indexOf('=');
+                if (eq > 0 && name.equals(pair.substring(0, eq).trim())) return pair.substring(eq + 1).trim();
+            }
+        }
+        return null;
     }
 
     // --- Host check (DNS rebinding) ---
@@ -759,6 +905,12 @@ public class DashboardServer {
 
     /** Secret required by the POST /api/stop and /api/stop-now endpoints. */
     public String getStopToken() { return stopToken; }
+
+    /** True when the socket is bound to a loopback address. Meaningful once start() has returned. */
+    public boolean isLoopbackBind() { return loopbackBind; }
+
+    /** True when every request must carry the access link's token: one is set and the bind is beyond localhost. */
+    public boolean isAccessLinkRequired() { return accessToken != null && !loopbackBind; }
 
     // --- SSE Client ---
 

@@ -59,6 +59,7 @@ without editing the `.jmx`.
 |----------|---------|-------------|
 | `live.dashboard.port` | `7566` | HTTP server port; if it's busy, the next free one up to 7575 |
 | `live.dashboard.bind` | `localhost` | Bind address (`0.0.0.0` to reach the dashboard from another machine) |
+| `live.dashboard.access.token` | *(not set)* | With a bind beyond `localhost`: `generate` prints an access link on the start line of `jmeter.log`, and only someone with that link can read the run or stop it. Not set: open to anyone who can reach the port |
 | `live.dashboard.open.browser` | `true` | Auto-open browser on test start |
 | `live.dashboard.update.interval` | `2` | Update and chart slot interval, in seconds |
 | `live.dashboard.window.max` | `3600` | How long 2-second slots are kept (seconds); 1-minute slots cover the whole run |
