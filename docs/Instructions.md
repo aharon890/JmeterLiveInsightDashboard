@@ -52,7 +52,7 @@ the executable bit on scripts. Re-run it if a tier reports a script-mode problem
 mvn clean package -DskipTests
 ```
 
-JAR output: `target/jmeter-live-dashboard-1.6.3.jar`
+JAR output: `target/jmeter-live-dashboard-1.7.0.jar`
 
 Copy it to `$JMETER_HOME/lib/ext/` to install, removing any older
 `jmeter-live-dashboard-*.jar` there first.
