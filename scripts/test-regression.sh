@@ -11,7 +11,7 @@
 #
 #    Java    full unit suite, including @Tag("slow")   ~50s
 #    Web     full Playwright suite (parallel)          ~30s
-#    Docker  real JMeter + real jar, D1-D15           ~115s   [needs Docker]
+#    Docker  real JMeter + real jar, D1-D16           ~115s   [needs Docker]
 #
 #  The long .jmx load plans are deliberately NOT here — they are load
 #  scenarios, not pass/fail tests. Run one on demand; see docs/TESTING.md.
@@ -102,14 +102,14 @@ echo "=== [4/4] Docker E2E (real JMeter) ==="
 t0=$(date +%s)
 if [[ "${SKIP_DOCKER:-0}" == "1" ]]; then
     echo "[SKIP] SKIP_DOCKER=1 — container layer not run."
-    record DOCKER "Docker E2E (D1-D15)" SKIP "explicitly skipped via SKIP_DOCKER=1"
+    record DOCKER "Docker E2E (D1-D16)" SKIP "explicitly skipped via SKIP_DOCKER=1"
 elif ! docker info >/dev/null 2>&1; then
     echo "[SKIP] Docker daemon not running — start Docker Desktop to include this layer."
-    record DOCKER "Docker E2E (D1-D15)" SKIP "docker daemon unavailable"
+    record DOCKER "Docker E2E (D1-D16)" SKIP "docker daemon unavailable"
 elif bash "$PROJECT_DIR/scripts/run-docker-tests.sh"; then
-    record DOCKER "Docker E2E (D1-D15)" PASS "" "$(( $(date +%s) - t0 ))"
+    record DOCKER "Docker E2E (D1-D16)" PASS "" "$(( $(date +%s) - t0 ))"
 else
-    record DOCKER "Docker E2E (D1-D15)" FAIL "see test-results/docker/jmeter.log" "$(( $(date +%s) - t0 ))"
+    record DOCKER "Docker E2E (D1-D16)" FAIL "see test-results/docker/jmeter.log" "$(( $(date +%s) - t0 ))"
 fi
 
 elapsed=$(( $(date +%s) - started ))

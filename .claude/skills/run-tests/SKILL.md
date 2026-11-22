@@ -133,7 +133,7 @@ Direct pushes to `main`/`master` are still blocked by `.githooks/pre-push`.
 
 State what actually ran. Give counts, not vibes — read them off the run's own
 output, never from memory or from this file, and phrase it like
-"<N> Java + <N> Playwright + D1–D15, all green in <N>s". Each tier prints a
+"<N> Java + <N> Playwright + D1–D16, all green in <N>s". Each tier prints a
 per-layer time; include those when something looks slow. If a layer was skipped,
 say so explicitly and say what it would have covered.
 
